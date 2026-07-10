@@ -1,3 +1,10 @@
+import type {
+  CognitionConsent,
+  OperatorUnderstanding,
+  CloudSyncConsentDeclaration,
+  ConnectorConsentDeclaration,
+} from './types/cognitive'
+
 export type RosieRecommendation = {
   id: string
   category: 'priority' | 'commitment' | 'decision' | 'reflection' | 'review' | 'security'
@@ -165,6 +172,14 @@ export type PersonalData = {
   understandingState?: UnderstandingState
   missionPlans?: MissionPlan[]
   missionSteps?: MissionStep[]
+  /** Phase 3: operator cognition consent. Defaults to off. */
+  cognitionConsent?: CognitionConsent
+  /** Phase 3: operator-confirmed understandings derived from local records. */
+  operatorUnderstandings?: OperatorUnderstanding[]
+  /** Phase 3: cloud sync consent declaration (not implemented in Build 013). */
+  cloudSyncConsentDeclaration?: CloudSyncConsentDeclaration
+  /** Phase 3: per-connector consent declarations (not implemented in Build 013). */
+  connectorConsentDeclarations?: ConnectorConsentDeclaration[]
 }
 
 export type UnderstandingState = {
@@ -242,6 +257,11 @@ export function normalizePersonalData(raw: PersonalData): PersonalData {
       activePatternKeys: [],
       trendDirections: {},
     },
+    // Phase 3: safe defaults — consent is off until operator explicitly enables
+    cognitionConsent: raw.cognitionConsent ?? createDefaultCognitionConsent(),
+    operatorUnderstandings: raw.operatorUnderstandings ?? [],
+    cloudSyncConsentDeclaration: raw.cloudSyncConsentDeclaration ?? createDefaultCloudSyncConsent(),
+    connectorConsentDeclarations: raw.connectorConsentDeclarations ?? [],
   }
 }
 
@@ -272,6 +292,36 @@ export function getReviewPeriodStart(period: ReviewPeriod): Date {
 export function inPeriod(isoDate: string, period: ReviewPeriod): boolean {
   if (period === 'all') return true
   return new Date(isoDate) >= getReviewPeriodStart(period)
+}
+
+// ---------------------------------------------------------------------------
+// Phase 3 default factory helpers
+// ---------------------------------------------------------------------------
+
+export const COGNITION_CONSENT_VERSION = '1.0.0'
+
+/** Returns a safe default CognitionConsent with status 'off'. */
+export function createDefaultCognitionConsent(): CognitionConsent {
+  return {
+    status: 'off',
+    version: COGNITION_CONSENT_VERSION,
+    purpose:
+      'Allow Rosie to observe your local encrypted records to surface patterns, ' +
+      'reduce cognitive friction, and provide personalized briefing support. ' +
+      'All analysis is local only. No data leaves your device.',
+    updatedAt: new Date().toISOString(),
+    permittedDataCategories: [],
+    permittedFeatureSurfaces: [],
+    auditHistory: [],
+  }
+}
+
+/** Returns a safe default CloudSyncConsentDeclaration with status 'not_offered'. */
+export function createDefaultCloudSyncConsent(): CloudSyncConsentDeclaration {
+  return {
+    status: 'not_offered',
+    updatedAt: new Date().toISOString(),
+  }
 }
 
 export function createInitialData(): PersonalData {
@@ -313,6 +363,10 @@ export function createInitialData(): PersonalData {
       activePatternKeys: [],
       trendDirections: {},
     },
+    cognitionConsent: createDefaultCognitionConsent(),
+    operatorUnderstandings: [],
+    cloudSyncConsentDeclaration: createDefaultCloudSyncConsent(),
+    connectorConsentDeclarations: [],
   }
 }
 

@@ -27,3 +27,20 @@ export type {
   BackupPackage,
   RecoveryAuditEvent,
 } from '../vault'
+
+export type {
+  CognitionDataCategory,
+  CognitionFeatureSurface,
+  CognitionConsentAction,
+  CognitionConsentAuditEvent,
+  CognitionConsent,
+  UnderstandingContractState,
+  UnderstandingProvenance,
+  UnderstandingCorrection,
+  OperatorUnderstanding,
+  CloudSyncConsentDeclaration,
+  ConnectorPermissionLevel,
+  ConnectorPermissionGrant,
+  ConnectorConsentDeclaration,
+  Phase3ConsentState,
+} from './cognitive'

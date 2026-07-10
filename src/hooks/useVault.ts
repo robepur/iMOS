@@ -11,6 +11,7 @@ import type {
   TimelineEntry,
   UnderstandingState,
 } from '../localData'
+import type { CognitionConsent } from '../types/cognitive'
 import { createId, createInitialData, normalizePersonalData } from '../localData'
 import { VaultService } from '../services/VaultService'
 import { StorageService } from '../services/StorageService'
@@ -55,6 +56,8 @@ export type UseVaultReturn = {
   deleteMissionStep: (planId: string, stepId: string) => void
   reorderMissionSteps: (planId: string, orderedStepIds: string[]) => void
   deleteMissionPlan: (planId: string) => void
+  /** Phase 3: Update the operator's cognition consent record. */
+  updateCognitionConsent: (updated: CognitionConsent) => void
 }
 
 function timelineSignature(entry: Omit<TimelineEntry, 'id' | 'createdAt'>): string {
@@ -625,6 +628,13 @@ export function useVault(): UseVaultReturn {
     })
   }, [])
 
+  const updateCognitionConsent = useCallback((updated: CognitionConsent) => {
+    setData((prev) => {
+      if (!prev) return prev
+      return { ...prev, cognitionConsent: updated }
+    })
+  }, [])
+
   return {
     vaultState, data, passphrase, error, saving, setData,
     createVault, unlock, lock, reset,
@@ -636,5 +646,6 @@ export function useVault(): UseVaultReturn {
     syncUnderstandingState,
     saveMissionPlan, setMissionPlanStatus, updateMissionPlan, updateMissionStepStatus, updateMissionStep,
     addMissionStep, deleteMissionStep, reorderMissionSteps, deleteMissionPlan,
+    updateCognitionConsent,
   }
 }
