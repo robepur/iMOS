@@ -190,6 +190,42 @@ export type UnderstandingState = {
 
 const VALID_LEVELS: PriorityLevel[] = ['critical', 'high', 'normal', 'low']
 
+function isSafeCognitionConsent(value: unknown): value is CognitionConsent {
+  if (!value || typeof value !== 'object') return false
+  const consent = value as Partial<CognitionConsent>
+  if (!['off', 'on', 'revoked'].includes(String(consent.status))) return false
+  if (typeof consent.version !== 'string' || typeof consent.purpose !== 'string' || typeof consent.updatedAt !== 'string') return false
+  if (!Array.isArray(consent.permittedDataCategories) || !Array.isArray(consent.permittedFeatureSurfaces) || !Array.isArray(consent.auditHistory)) return false
+  if (consent.status === 'revoked') {
+    if (typeof consent.revokedAt !== 'string') return false
+    if (consent.permittedDataCategories.length > 0 || consent.permittedFeatureSurfaces.length > 0) return false
+  }
+  return true
+}
+
+function isSafeOperatorUnderstanding(value: unknown): value is OperatorUnderstanding {
+  if (!value || typeof value !== 'object') return false
+  const understanding = value as Partial<OperatorUnderstanding>
+  const validStates = ['observed', 'proposed', 'operator_confirmed', 'operator_corrected', 'operator_rejected', 'expired']
+  if (typeof understanding.id !== 'string' || typeof understanding.statement !== 'string') return false
+  if (!validStates.includes(String(understanding.state))) return false
+  if (!Array.isArray(understanding.evidenceIds) || !Array.isArray(understanding.correctionHistory) || !Array.isArray(understanding.permittedFeatureUses)) return false
+  if (typeof understanding.ruleId !== 'string' || typeof understanding.ruleVersion !== 'string' || typeof understanding.confidenceBasis !== 'string') return false
+  const provenance = understanding.provenance
+  if (!provenance || provenance.dataSource !== 'local_vault') return false
+  if (typeof provenance.ruleId !== 'string' || typeof provenance.ruleVersion !== 'string' || !Array.isArray(provenance.evidenceTypes) || typeof provenance.generatedAt !== 'string') return false
+  return provenance.ruleId === understanding.ruleId && provenance.ruleVersion === understanding.ruleVersion
+}
+
+function normalizeCloudSyncDeclaration(value: unknown): CloudSyncConsentDeclaration {
+  if (!value || typeof value !== 'object') return createDefaultCloudSyncConsent()
+  const declaration = value as Partial<CloudSyncConsentDeclaration>
+  if (!['not_offered', 'declined', 'enabled', 'revoked'].includes(String(declaration.status)) || typeof declaration.updatedAt !== 'string') {
+    return createDefaultCloudSyncConsent()
+  }
+  return declaration as CloudSyncConsentDeclaration
+}
+
 export function normalizePersonalData(raw: PersonalData): PersonalData {
   const rawPriorities = (raw.priorities ?? []) as unknown as Array<Record<string, unknown>>
   const incomplete = rawPriorities.filter((p) => !p['completed'])
@@ -258,10 +294,23 @@ export function normalizePersonalData(raw: PersonalData): PersonalData {
       trendDirections: {},
     },
     // Phase 3: safe defaults — consent is off until operator explicitly enables
-    cognitionConsent: raw.cognitionConsent ?? createDefaultCognitionConsent(),
-    operatorUnderstandings: raw.operatorUnderstandings ?? [],
-    cloudSyncConsentDeclaration: raw.cloudSyncConsentDeclaration ?? createDefaultCloudSyncConsent(),
-    connectorConsentDeclarations: raw.connectorConsentDeclarations ?? [],
+    cognitionConsent: isSafeCognitionConsent(raw.cognitionConsent)
+      ? raw.cognitionConsent
+      : createDefaultCognitionConsent(),
+    operatorUnderstandings: Array.isArray(raw.operatorUnderstandings)
+      ? raw.operatorUnderstandings.filter(isSafeOperatorUnderstanding)
+      : [],
+    cloudSyncConsentDeclaration: normalizeCloudSyncDeclaration(raw.cloudSyncConsentDeclaration),
+    connectorConsentDeclarations: Array.isArray(raw.connectorConsentDeclarations)
+      ? raw.connectorConsentDeclarations.filter((declaration) =>
+          declaration
+          && typeof declaration === 'object'
+          && typeof declaration.connectorId === 'string'
+          && ['not_offered', 'declined', 'enabled', 'revoked'].includes(declaration.status)
+          && Array.isArray(declaration.permissionGrants)
+          && Array.isArray(declaration.auditHistory),
+        )
+      : [],
   }
 }
 
