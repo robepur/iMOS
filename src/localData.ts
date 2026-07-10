@@ -19,11 +19,12 @@ export type RosieRecommendation = {
 export type NodeType =
   | 'priority' | 'commitment' | 'decision' | 'reflection'
   | 'timeline' | 'secret' | 'recommendation' | 'recovery' | 'memory' | 'understanding'
+  | 'mission' | 'mission_step'
 
 export type EdgeType =
   | 'related_to' | 'created_from' | 'references' | 'supports'
   | 'depends_on' | 'completed_by' | 'mentioned_in' | 'derived_from'
-  | 'observed_in' | 'remembered_by'
+  | 'observed_in' | 'remembered_by' | 'generated_from' | 'blocked_by' | 'completes'
 
 export type GraphNode = {
   id: string
@@ -91,10 +92,35 @@ export type Decision = {
 
 export type TimelineEntry = {
   id: string
-  type: 'priority' | 'commitment' | 'decision' | 'reflection' | 'system' | 'secret' | 'recovery'
+  type: 'priority' | 'commitment' | 'decision' | 'reflection' | 'system' | 'secret' | 'recovery' | 'mission'
   title: string
   detail: string
   createdAt: string
+}
+
+export type MissionPlan = {
+  id: string
+  title: string
+  objective: string
+  status: 'draft' | 'approved' | 'active' | 'paused' | 'completed' | 'cancelled'
+  createdAt: string
+  updatedAt: string
+  sourcePriorityIds: string[]
+  stepIds: string[]
+  explanation: string
+  approved: boolean
+}
+
+export type MissionStep = {
+  id: string
+  title: string
+  description: string
+  order: number
+  status: 'pending' | 'active' | 'completed' | 'blocked'
+  dependsOn: string[]
+  evidence: string[]
+  estimatedEffort: 'small' | 'medium' | 'large'
+  completedAt?: string
 }
 
 export type Reflection = {
@@ -130,6 +156,8 @@ export type PersonalData = {
   recommendations?: RosieRecommendation[]
   knowledgeGraph?: KnowledgeGraphData
   understandingState?: UnderstandingState
+  missionPlans?: MissionPlan[]
+  missionSteps?: MissionStep[]
 }
 
 export type UnderstandingState = {
@@ -165,6 +193,8 @@ export function normalizePersonalData(raw: PersonalData): PersonalData {
     secrets: raw.secrets ?? [],
     priorities,
     recommendations: raw.recommendations ?? [],
+    missionPlans: raw.missionPlans ?? [],
+    missionSteps: raw.missionSteps ?? [],
     understandingState: raw.understandingState ?? {
       activeDriftSignals: [],
       activePatternKeys: [],
@@ -234,6 +264,8 @@ export function createInitialData(): PersonalData {
       }
     ],
     recommendations: [],
+    missionPlans: [],
+    missionSteps: [],
     understandingState: {
       activeDriftSignals: [],
       activePatternKeys: [],

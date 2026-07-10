@@ -19,6 +19,7 @@ export default function TimelineExplorer({ timeline }: { timeline: TimelineEntry
     { value: 'reflection', label: 'Reflection' },
     { value: 'secret', label: 'Secret' },
     { value: 'recovery', label: 'Recovery' },
+    { value: 'mission', label: 'Mission' },
     { value: 'system', label: 'System' },
   ]
 
@@ -76,4 +77,3 @@ export default function TimelineExplorer({ timeline }: { timeline: TimelineEntry
     </div>
   )
 }
-

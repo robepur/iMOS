@@ -13,12 +13,16 @@ const EDGE_LABELS: Record<GraphEdge['type'], string> = {
   derived_from:  'Derived From',
   observed_in:   'Observed In',
   remembered_by: 'Remembered By',
+  generated_from: 'Generated From',
+  blocked_by: 'Blocked By',
+  completes: 'Completes',
 }
 
 const NODE_TYPE_LABELS: Record<GraphNode['type'], string> = {
   priority: 'Priority', commitment: 'Commitment', decision: 'Decision',
   reflection: 'Reflection', timeline: 'Timeline', secret: 'Secret',
   recommendation: 'Recommendation', recovery: 'Recovery', memory: 'Memory', understanding: 'Understanding',
+  mission: 'Mission', mission_step: 'Mission Step',
 }
 
 type Props = {

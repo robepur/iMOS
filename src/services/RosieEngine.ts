@@ -50,6 +50,10 @@ export type MorningBriefData = {
   criticalWork: Priority[]
   overdueCommitments: { id: string; title: string; due: string }[]
   openDecisions: { id: string; title: string }[]
+  activeMission?: { id: string; title: string; progressPercent: number }
+  currentMissionStep?: { id: string; title: string } | null
+  blockedWork: string[]
+  missionRisks: string[]
 }
 
 export type EveningSummaryData = {
@@ -57,6 +61,10 @@ export type EveningSummaryData = {
   completedCommitments: string[]
   decisionsMade: string[]
   reflectionNeeded: boolean
+  completedMissionSteps: string[]
+  missionProgress: number
+  outstandingBlocks: string[]
+  recommendedNextStep?: string
 }
 
 export type HealthSignalLevel = 'green' | 'amber' | 'red'
@@ -368,6 +376,16 @@ export const RosieEngine = {
    */
   getMorningBrief(data: PersonalData): MorningBriefData {
     const today = new Date().toDateString()
+    const activeMission = (data.missionPlans ?? []).find((m) => m.status === 'active')
+    const missionSteps = activeMission ? (data.missionSteps ?? []).filter((s) => activeMission.stepIds.includes(s.id)) : []
+    const completedMissionSteps = missionSteps.filter((s) => s.status === 'completed').length
+    const missionProgress = missionSteps.length > 0 ? Math.round((completedMissionSteps / missionSteps.length) * 100) : 0
+    const blockedWork = missionSteps.filter((s) => s.status === 'blocked').map((s) => s.title)
+    const missionRisks = [
+      ...(blockedWork.length > 0 ? [`${blockedWork.length} mission step${blockedWork.length !== 1 ? 's are' : ' is'} blocked`] : []),
+      ...data.decisions.filter((d) => d.status === 'open').slice(0, 2).map((d) => `Open decision risk: ${d.title}`),
+    ]
+
     return {
       priorities: data.priorities.filter((p) => !p.completed).slice(0, 5),
       criticalWork: data.priorities.filter((p) => !p.completed && p.level === 'critical'),
@@ -378,6 +396,10 @@ export const RosieEngine = {
         .filter((d) => d.status === 'open')
         .slice(0, 5)
         .map((d) => ({ id: d.id, title: d.title })),
+      activeMission: activeMission ? { id: activeMission.id, title: activeMission.title, progressPercent: missionProgress } : undefined,
+      currentMissionStep: missionSteps.find((s) => s.status === 'active') ? { id: missionSteps.find((s) => s.status === 'active')!.id, title: missionSteps.find((s) => s.status === 'active')!.title } : null,
+      blockedWork,
+      missionRisks,
     }
   },
 
@@ -386,6 +408,13 @@ export const RosieEngine = {
    */
   getEveningSummary(data: PersonalData): EveningSummaryData {
     const todayStart = new Date(new Date().toDateString()).toISOString()
+    const activeMission = (data.missionPlans ?? []).find((m) => m.status === 'active')
+    const missionSteps = activeMission ? (data.missionSteps ?? []).filter((s) => activeMission.stepIds.includes(s.id)) : []
+    const completedMissionSteps = missionSteps.filter((s) => s.status === 'completed').map((s) => s.title)
+    const outstandingBlocks = missionSteps.filter((s) => s.status === 'blocked').map((s) => s.title)
+    const missionProgress = missionSteps.length > 0 ? Math.round((completedMissionSteps.length / missionSteps.length) * 100) : 0
+    const recommendedNextStep = missionSteps.find((s) => s.status === 'pending' && s.dependsOn.every((dep) => missionSteps.find((x) => x.id === dep)?.status === 'completed'))?.title
+
     return {
       completedPriorities: data.priorities
         .filter((p) => p.completed && p.completedAt && p.completedAt >= todayStart)
@@ -399,6 +428,10 @@ export const RosieEngine = {
         .slice(0, 5)
         .map((d) => d.title),
       reflectionNeeded: !data.reflections[0] || new Date(data.reflections[0].createdAt) < new Date(new Date().toDateString()),
+      completedMissionSteps,
+      missionProgress,
+      outstandingBlocks,
+      recommendedNextStep,
     }
   },
 

@@ -12,9 +12,8 @@
 import type {
   PersonalData, GraphNode, GraphEdge, KnowledgeGraphData,
   NodeType, EdgeType, Priority, Commitment, Decision,
-  Reflection, TimelineEntry, SecretRecord, RosieRecommendation,
+  Reflection, TimelineEntry, SecretRecord, RosieRecommendation, MissionPlan, MissionStep,
 } from '../localData'
-import { createId } from '../localData'
 import { UnderstandingEngine } from './UnderstandingEngine'
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
@@ -91,6 +90,14 @@ function recommendationNode(r: RosieRecommendation): GraphNode {
   return { id: r.id, type: 'recommendation', title: r.title, createdAt: r.createdAt }
 }
 
+function missionNode(m: MissionPlan): GraphNode {
+  return { id: m.id, type: 'mission', title: m.title, createdAt: m.createdAt }
+}
+
+function missionStepNode(step: MissionStep): GraphNode {
+  return { id: step.id, type: 'mission_step', title: step.title, createdAt: step.completedAt ?? new Date().toISOString() }
+}
+
 function understandingNode(id: string, title: string, createdAt: string): GraphNode {
   return { id, type: 'understanding', title, createdAt }
 }
@@ -115,6 +122,8 @@ function discoverEdges(data: PersonalData, now: string): GraphEdge[] {
   const timeline = data.timeline
   const secrets = data.secrets ?? []
   const recommendations = data.recommendations ?? []
+  const missionPlans = data.missionPlans ?? []
+  const missionSteps = data.missionSteps ?? []
 
   // Rule 1: Reflection text mentions priority title keywords
   for (const r of reflections) {
@@ -259,6 +268,60 @@ function discoverEdges(data: PersonalData, now: string): GraphEdge[] {
           `${overlap} keyword match${overlap !== 1 ? 'es' : ''} on safe metadata`,
         ], now))
       }
+
+      // Rule 10: Mission generated from priorities
+      for (const mission of missionPlans) {
+        for (const priorityId of mission.sourcePriorityIds) {
+          const priority = priorities.find((p) => p.id === priorityId)
+          if (!priority) continue
+          add(mkEdge(mission.id, priority.id, 'generated_from', [
+            `Mission "${mission.title}" was generated from priority "${priority.title}"`,
+          ], now))
+          add(mkEdge(mission.id, priority.id, 'supports', [
+            `Mission execution supports completion of "${priority.title}"`,
+          ], now))
+          if (mission.status === 'completed') {
+            add(mkEdge(mission.id, priority.id, 'completes', [
+              `Mission "${mission.title}" completed with source priority "${priority.title}"`,
+            ], now))
+          }
+        }
+      }
+
+      // Rule 11: Mission step belongs to mission and depends_on other steps
+      for (const mission of missionPlans) {
+        for (const stepId of mission.stepIds) {
+          const step = missionSteps.find((s) => s.id === stepId)
+          if (!step) continue
+          add(mkEdge(step.id, mission.id, 'created_from', [
+            `Step "${step.title}" belongs to mission "${mission.title}"`,
+          ], now))
+          add(mkEdge(step.id, mission.id, 'generated_from', [
+            `Step "${step.title}" was generated from mission "${mission.title}"`,
+          ], now))
+          for (const dep of step.dependsOn) {
+            if (missionSteps.some((s) => s.id === dep)) {
+              add(mkEdge(step.id, dep, 'depends_on', [
+                `Step "${step.title}" depends on "${missionSteps.find((s) => s.id === dep)?.title ?? dep}"`,
+              ], now))
+            }
+          }
+        }
+      }
+
+      // Rule 12: Active/paused mission blocked by open decisions or commitments
+      for (const mission of missionPlans.filter((m) => m.status === 'active' || m.status === 'paused')) {
+        for (const decision of decisions.filter((d) => d.status === 'open')) {
+          add(mkEdge(mission.id, decision.id, 'blocked_by', [
+            `Mission "${mission.title}" has open decision blocker "${decision.title}"`,
+          ], now))
+        }
+        for (const commitment of commitments.filter((c) => c.status === 'open')) {
+          add(mkEdge(mission.id, commitment.id, 'blocked_by', [
+            `Mission "${mission.title}" has open commitment blocker "${commitment.title}"`,
+          ], now))
+        }
+      }
     }
   }
 
@@ -300,6 +363,7 @@ export const KnowledgeGraph = {
     const understanding = UnderstandingEngine.analyze(data)
     const understandingNodes: GraphNode[] = []
     const understandingEdges: GraphEdge[] = []
+    const missionEdges: GraphEdge[] = []
 
     for (const signal of understanding.drift.signals) {
       if (signal.severity === 'info') continue
@@ -351,6 +415,43 @@ export const KnowledgeGraph = {
       })
     }
 
+    const prioritiesById = new Map(data.priorities.map((p) => [p.id, p]))
+    for (const mission of data.missionPlans ?? []) {
+      for (const priorityId of mission.sourcePriorityIds) {
+        const priority = prioritiesById.get(priorityId)
+        if (!priority) continue
+        missionEdges.push(mkEdge(mission.id, priority.id, 'generated_from', [
+          `Mission "${mission.title}" was generated from priority "${priority.title}"`,
+        ], now))
+      }
+      for (const stepId of mission.stepIds) {
+        const step = (data.missionSteps ?? []).find((s) => s.id === stepId)
+        if (!step) continue
+        missionEdges.push(mkEdge(step.id, mission.id, 'generated_from', [
+          `Step "${step.title}" was generated from mission "${mission.title}"`,
+        ], now))
+        for (const dep of step.dependsOn) {
+          if ((data.missionSteps ?? []).some((s) => s.id === dep)) {
+            missionEdges.push(mkEdge(step.id, dep, 'depends_on', [
+              `Step "${step.title}" depends on "${(data.missionSteps ?? []).find((s) => s.id === dep)?.title ?? dep}"`,
+            ], now))
+          }
+          if (mission.status === 'active' || mission.status === 'paused') {
+            for (const decision of data.decisions.filter((d) => d.status === 'open')) {
+              missionEdges.push(mkEdge(mission.id, decision.id, 'blocked_by', [
+                `Mission "${mission.title}" is blocked by open decision "${decision.title}"`,
+              ], now))
+            }
+            for (const commitment of data.commitments.filter((c) => c.status === 'open')) {
+              missionEdges.push(mkEdge(mission.id, commitment.id, 'blocked_by', [
+                `Mission "${mission.title}" is blocked by open commitment "${commitment.title}"`,
+              ], now))
+            }
+          }
+        }
+      }
+    }
+
     const nodes: GraphNode[] = [
       ...data.priorities.map(priorityNode),
       ...data.commitments.map(commitmentNode),
@@ -359,9 +460,15 @@ export const KnowledgeGraph = {
       ...data.timeline.map(timelineNode),
       ...(data.secrets ?? []).map(secretNode),
       ...(data.recommendations ?? []).map(recommendationNode),
+      ...(data.missionPlans ?? []).map(missionNode),
+      ...(data.missionSteps ?? []).map(missionStepNode),
       ...understandingNodes,
     ]
-    const edges = [...discoverEdges(data, now), ...understandingEdges]
+    const edges = Array.from(
+      new Map(
+        [...discoverEdges(data, now), ...understandingEdges, ...missionEdges].map((e) => [e.id, e])
+      ).values()
+    )
     return { nodes, edges, builtAt: now }
   },
 
@@ -492,6 +599,9 @@ export const KnowledgeGraph = {
       derived_from:  `"${sourceTitle}" is derived from "${targetTitle}"`,
       observed_in:   `"${sourceTitle}" was observed in "${targetTitle}"`,
       remembered_by: `"${sourceTitle}" is remembered in "${targetTitle}"`,
+      generated_from: `"${sourceTitle}" was generated from "${targetTitle}"`,
+      blocked_by: `"${sourceTitle}" is blocked by "${targetTitle}"`,
+      completes: `"${sourceTitle}" completes "${targetTitle}"`,
     }
     return labels[edge.type] ?? `"${sourceTitle}" is connected to "${targetTitle}"`
   },

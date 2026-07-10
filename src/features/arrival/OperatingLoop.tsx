@@ -1,7 +1,7 @@
 ﻿import { useState } from 'react'
 import { ArrowRight, CheckCircle2, Focus, ListChecks, Plus } from 'lucide-react'
 import { PersonalData, Priority, TimelineEntry } from '../../localData'
-import type { EveningSummaryData } from '../../services/RosieEngine'
+import type { EveningSummaryData, MorningBriefData } from '../../services/RosieEngine'
 import type { UnderstandingObservation } from '../../services/UnderstandingEngine'
 import RosieMemory from '../rosie/RosieMemory'
 
@@ -31,7 +31,7 @@ export function Arrival({ date, data, primary, onBegin }: {
   )
 }
 
-export function Brief({ data, overdueCount, criticalCount, secretCount, onAddCommitment, onAddDecision, onToggleCommitment, onToggleDecision, onOpenPriorities, onOpenReflectionHistory, onBegin, morningObservations = [] }: {
+export function Brief({ data, overdueCount, criticalCount, secretCount, onAddCommitment, onAddDecision, onToggleCommitment, onToggleDecision, onOpenPriorities, onOpenReflectionHistory, onBegin, morningObservations = [], morningBrief }: {
   data: PersonalData
   overdueCount: number
   criticalCount: number
@@ -44,6 +44,7 @@ export function Brief({ data, overdueCount, criticalCount, secretCount, onAddCom
   onOpenReflectionHistory: () => void
   onBegin: () => void
   morningObservations?: UnderstandingObservation[]
+  morningBrief?: MorningBriefData
 }) {
   const [capture, setCapture] = useState<'commitment' | 'decision' | null>(null)
   const openCommitments = data.commitments.filter((item) => item.status === 'open')
@@ -52,6 +53,7 @@ export function Brief({ data, overdueCount, criticalCount, secretCount, onAddCom
   const primary = activePriorities.find((p) => p.primary) ?? activePriorities[0]
 
   const observations = morningObservations
+  const morning = morningBrief
 
   return (
     <div>
@@ -78,6 +80,15 @@ export function Brief({ data, overdueCount, criticalCount, secretCount, onAddCom
               {obs.action && <p className="dashRecent">Action: {obs.action}</p>}
             </div>
           ))}
+        </section>
+      )}
+      {morning?.activeMission && (
+        <section className="dashSection" aria-label="Mission brief">
+          <p className="eyebrow">TODAY'S ACTIVE MISSION</p>
+          <p><strong>{morning.activeMission.title}</strong> · {morning.activeMission.progressPercent}% complete</p>
+          {morning.currentMissionStep && <p>Current step: {morning.currentMissionStep.title}</p>}
+          {morning.blockedWork.length > 0 && <p className="mission-risk">Blocked work: {morning.blockedWork.join(', ')}</p>}
+          {morning.missionRisks.length > 0 && <p className="dashRecent">Mission risks: {morning.missionRisks.join(' | ')}</p>}
         </section>
       )}
       <div className="recordGrid">
@@ -145,7 +156,11 @@ export function Reflection({
             <span>{eveningSummary.completedPriorities.length} priorities completed</span>
             <span>{eveningSummary.completedCommitments.length} commitments completed</span>
             <span>{eveningSummary.decisionsMade.length} decisions made</span>
+            <span>{eveningSummary.completedMissionSteps.length} mission steps completed</span>
+            <span>{eveningSummary.missionProgress}% mission progress</span>
           </div>
+          {eveningSummary.outstandingBlocks.length > 0 && <p className="mission-risk">Outstanding blocks: {eveningSummary.outstandingBlocks.join(', ')}</p>}
+          {eveningSummary.recommendedNextStep && <p className="dashRecent">Recommended next step: {eveningSummary.recommendedNextStep}</p>}
         </section>
       )}
       {eveningObservations.length > 0 && (

@@ -8,7 +8,7 @@ export { SCHEMA_VERSION }
  * Migration pipeline. Accepts any raw unknown payload from LocalStorage
  * and returns a fully normalized, current-schema PersonalData object.
  *
- * Compatible with vaults from Builds 003 – 011.
+ * Compatible with vaults from Builds 003 – 012.
  * Never discards operator data.
  */
 export function migrateToLatest(raw: unknown): PersonalData {

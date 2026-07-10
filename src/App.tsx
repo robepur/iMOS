@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useMemo, useState } from 'react'
-import { BrainCircuit, Clock3, KeyRound, ListChecks, Lock, LockKeyhole, Network, ShieldCheck, Zap } from 'lucide-react'
+import { BrainCircuit, Clock3, KeyRound, ListChecks, Lock, LockKeyhole, Network, Route, ShieldCheck, Zap } from 'lucide-react'
 import { useVault } from './hooks/useVault'
 import { usePriorities } from './hooks/usePriorities'
 import { useSecrets } from './hooks/useSecrets'
@@ -21,6 +21,7 @@ const ReflectionHistory      = lazy(() => import('./features/reflection/Reflecti
 const RecommendationCenter   = lazy(() => import('./features/rosie/RecommendationCenter'))
 const KnowledgeGraphViewer   = lazy(() => import('./features/knowledge/KnowledgeGraphViewer'))
 const UnderstandingDashboard = lazy(() => import('./features/understanding/UnderstandingDashboard'))
+const MissionPlanner         = lazy(() => import('./features/missions/MissionPlanner'))
 
 type Mode = 'arrival' | 'brief' | 'focus' | 'reflection'
 
@@ -42,6 +43,7 @@ export default function App() {
   const [showRosie, setShowRosie]                   = useState(false)
   const [showKnowledge, setShowKnowledge]           = useState(false)
   const [showUnderstanding, setShowUnderstanding]   = useState(false)
+  const [showMissions, setShowMissions]             = useState(false)
 
   const date = useMemo(() => new Intl.DateTimeFormat('en-US', { weekday: 'long', month: 'long', day: 'numeric' }).format(new Date()), [])
 
@@ -51,6 +53,7 @@ export default function App() {
 
   const { data } = vault
   const healthSignals = RosieEngine.getHealthSignals(data)
+  const morningBrief = RosieEngine.getMorningBrief(data)
   const eveningSummary = RosieEngine.getEveningSummary(data)
   const openCommitments = data.commitments.filter((c) => c.status === 'open').length
   const graphStats = getStats()
@@ -116,6 +119,7 @@ export default function App() {
           <button className={`utilityButton${driftCritical ? ' utilityButton--alert' : ''}`} onClick={() => setShowUnderstanding(true)}>
             <BrainCircuit size={16} /> UNDERSTAND
           </button>
+          <button className="utilityButton" onClick={() => setShowMissions(true)}><Route size={16} /> MISSION</button>
           <button className="utilityButton" onClick={() => setShowKnowledge(true)}><Network size={16} /> KNOWLEDGE</button>
           <button className="utilityButton" onClick={() => setShowPriorities(true)}><ListChecks size={16} /> PRIORITIES</button>
           <button className="utilityButton" onClick={() => setShowSecrets(true)}><KeyRound size={16} /> SECRETS</button>
@@ -135,6 +139,17 @@ export default function App() {
           {showReflections && <ReflectionHistory reflections={data.reflections} onDelete={vault.deleteReflection} onClose={() => setShowReflections(false)} />}
           {showReview && <ReviewCenter data={data} onDeleteReflection={vault.deleteReflection} onClose={() => setShowReview(false)} />}
           {showRosie && <RecommendationCenter recs={recs} patterns={patterns} healthSignals={healthSignals} onComplete={vault.completeRecommendation} onDismiss={vault.dismissRecommendation} onSnooze={vault.snoozeRecommendation} onClose={() => setShowRosie(false)} />}
+          {showMissions && (
+            <MissionPlanner
+              data={data}
+              onClose={() => setShowMissions(false)}
+              onSaveMissionPlan={vault.saveMissionPlan}
+              onSetMissionPlanStatus={vault.setMissionPlanStatus}
+              onUpdateMissionPlan={vault.updateMissionPlan}
+              onUpdateMissionStepStatus={vault.updateMissionStepStatus}
+              onDeleteMissionPlan={vault.deleteMissionPlan}
+            />
+          )}
           {showKnowledge && <KnowledgeGraphViewer graph={graph} onClose={() => setShowKnowledge(false)} />}
           {showUnderstanding && understanding && <UnderstandingDashboard understanding={understanding} onClose={() => setShowUnderstanding(false)} />}
         </Suspense>
@@ -145,7 +160,7 @@ export default function App() {
       <section className="workspace">
         <div className="primary panel">
           {mode === 'arrival' && <Arrival date={date} data={data} primary={primary} onBegin={() => setMode('brief')} />}
-          {mode === 'brief' && <Brief data={data} overdueCount={overdueCount} criticalCount={criticalCount} secretCount={secrets.count} morningObservations={morningObservations} onAddCommitment={vault.addCommitment} onAddDecision={vault.addDecision} onToggleCommitment={vault.toggleCommitment} onToggleDecision={vault.toggleDecision} onOpenPriorities={() => setShowPriorities(true)} onOpenReflectionHistory={() => setShowReflections(true)} onBegin={() => setMode('focus')} />}
+          {mode === 'brief' && <Brief data={data} overdueCount={overdueCount} criticalCount={criticalCount} secretCount={secrets.count} morningBrief={morningBrief} morningObservations={morningObservations} onAddCommitment={vault.addCommitment} onAddDecision={vault.addDecision} onToggleCommitment={vault.toggleCommitment} onToggleDecision={vault.toggleDecision} onOpenPriorities={() => setShowPriorities(true)} onOpenReflectionHistory={() => setShowReflections(true)} onBegin={() => setMode('focus')} />}
           {mode === 'focus' && <FocusView primary={primary} onCompletePriority={() => primary && vault.completePrimaryPriority(primary)} onComplete={() => setMode('reflection')} />}
           {mode === 'reflection' && <Reflection eveningSummary={eveningSummary} eveningObservations={eveningObservations} onSave={(a, r, t) => { vault.saveReflection(a, r, t); setMode('arrival') }} />}
         </div>

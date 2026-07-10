@@ -1,5 +1,16 @@
 import { useCallback, useEffect, useState } from 'react'
-import type { Commitment, Decision, PersonalData, Priority, RosieRecommendation, SecretRecord, TimelineEntry, UnderstandingState } from '../localData'
+import type {
+  Commitment,
+  Decision,
+  MissionPlan,
+  MissionStep,
+  PersonalData,
+  Priority,
+  RosieRecommendation,
+  SecretRecord,
+  TimelineEntry,
+  UnderstandingState,
+} from '../localData'
 import { createId, createInitialData, normalizePersonalData } from '../localData'
 import { VaultService } from '../services/VaultService'
 import { StorageService } from '../services/StorageService'
@@ -34,6 +45,11 @@ export type UseVaultReturn = {
   snoozeRecommendation: (rec: RosieRecommendation, days: number) => void
   completeRecommendation: (rec: RosieRecommendation) => void
   syncUnderstandingState: (nextState: UnderstandingState, events: Array<Omit<TimelineEntry, 'id' | 'createdAt'>>) => void
+  saveMissionPlan: (plan: MissionPlan, steps: MissionStep[]) => void
+  setMissionPlanStatus: (planId: string, status: MissionPlan['status']) => void
+  updateMissionPlan: (planId: string, patch: Partial<Pick<MissionPlan, 'title' | 'objective' | 'explanation'>>) => void
+  updateMissionStepStatus: (planId: string, stepId: string, status: MissionStep['status']) => void
+  deleteMissionPlan: (planId: string) => void
 }
 
 export function useVault(): UseVaultReturn {
@@ -270,6 +286,118 @@ export function useVault(): UseVaultReturn {
     })
   }, [])
 
+  const saveMissionPlan = useCallback((plan: MissionPlan, steps: MissionStep[]) => {
+    setData((prev) => {
+      if (!prev) return prev
+      const plans = prev.missionPlans ?? []
+      const existingPlans = plans.filter((p) => p.id !== plan.id)
+      const existingSteps = (prev.missionSteps ?? []).filter((s) => !plan.stepIds.includes(s.id))
+      return {
+        ...prev,
+        missionPlans: [{ ...plan, updatedAt: new Date().toISOString() }, ...existingPlans],
+        missionSteps: [...steps, ...existingSteps],
+        timeline: [{
+          id: createId('timeline'),
+          type: 'mission',
+          title: 'Mission Created',
+          detail: plan.title,
+          createdAt: new Date().toISOString(),
+        }, ...prev.timeline],
+      }
+    })
+  }, [])
+
+  const setMissionPlanStatus = useCallback((planId: string, status: MissionPlan['status']) => {
+    setData((prev) => {
+      if (!prev) return prev
+      const titleByStatus: Record<MissionPlan['status'], string> = {
+        draft: 'Mission Drafted',
+        approved: 'Mission Approved',
+        active: 'Mission Activated',
+        paused: 'Mission Paused',
+        completed: 'Mission Completed',
+        cancelled: 'Mission Cancelled',
+      }
+      const mission = (prev.missionPlans ?? []).find((p) => p.id === planId)
+      if (!mission) return prev
+      return {
+        ...prev,
+        missionPlans: (prev.missionPlans ?? []).map((p) => p.id === planId ? { ...p, status, approved: status === 'approved' || p.approved, updatedAt: new Date().toISOString() } : p),
+        timeline: [{
+          id: createId('timeline'),
+          type: 'mission',
+          title: titleByStatus[status],
+          detail: mission.title,
+          createdAt: new Date().toISOString(),
+        }, ...prev.timeline],
+      }
+    })
+  }, [])
+
+  const updateMissionPlan = useCallback((planId: string, patch: Partial<Pick<MissionPlan, 'title' | 'objective' | 'explanation'>>) => {
+    setData((prev) => {
+      if (!prev) return prev
+      return {
+        ...prev,
+        missionPlans: (prev.missionPlans ?? []).map((p) => p.id === planId ? { ...p, ...patch, updatedAt: new Date().toISOString() } : p),
+      }
+    })
+  }, [])
+
+  const updateMissionStepStatus = useCallback((planId: string, stepId: string, status: MissionStep['status']) => {
+    setData((prev) => {
+      if (!prev) return prev
+      const mission = (prev.missionPlans ?? []).find((p) => p.id === planId)
+      if (!mission) return prev
+
+      const missionSteps = (prev.missionSteps ?? []).map((step) => {
+        if (step.id !== stepId) return step
+        return {
+          ...step,
+          status,
+          ...(status === 'completed' ? { completedAt: new Date().toISOString() } : {}),
+        }
+      })
+      const detailStep = missionSteps.find((s) => s.id === stepId)
+      const allCompleted = mission.stepIds.every((id) => missionSteps.find((s) => s.id === id)?.status === 'completed')
+
+      return {
+        ...prev,
+        missionSteps,
+        missionPlans: (prev.missionPlans ?? []).map((p) => p.id === planId
+          ? { ...p, status: allCompleted ? 'completed' : p.status, updatedAt: new Date().toISOString() }
+          : p),
+        timeline: [{
+          id: createId('timeline'),
+          type: 'mission',
+          title: status === 'completed' ? 'Step Completed' : 'Blocked Work',
+          detail: detailStep?.title ?? stepId,
+          createdAt: new Date().toISOString(),
+        }, ...prev.timeline],
+      }
+    })
+  }, [])
+
+  const deleteMissionPlan = useCallback((planId: string) => {
+    setData((prev) => {
+      if (!prev) return prev
+      const mission = (prev.missionPlans ?? []).find((p) => p.id === planId)
+      if (!mission) return prev
+      return {
+        ...prev,
+        missionPlans: (prev.missionPlans ?? []).filter((p) => p.id !== planId),
+        missionSteps: (prev.missionSteps ?? []).filter((s) => !mission.stepIds.includes(s.id)),
+        timeline: [{
+          id: createId('timeline'),
+          type: 'mission',
+          title: 'Mission Cancelled',
+          detail: mission.title,
+          createdAt: new Date().toISOString(),
+        }, ...prev.timeline],
+      }
+    })
+  }, [])
+
   return {
     vaultState, data, passphrase, error, saving, setData,
     createVault, unlock, lock, reset,
@@ -279,5 +407,6 @@ export function useVault(): UseVaultReturn {
     restoreVault, rotateVaultPassphrase,
     dismissRecommendation, snoozeRecommendation, completeRecommendation,
     syncUnderstandingState,
+    saveMissionPlan, setMissionPlanStatus, updateMissionPlan, updateMissionStepStatus, deleteMissionPlan,
   }
 }

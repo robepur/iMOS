@@ -556,6 +556,7 @@ textarea { min-height: 90px; resize: vertical; }
 .timelineExplorerItem.type-decision { border-left-color: #e05a5a; }
 .timelineExplorerItem.type-reflection { border-left-color: #5ac878; }
 .timelineExplorerItem.type-secret { border-left-color: #8f6cc5; }
+.timelineExplorerItem.type-mission { border-left-color: #5dade2; }
 
 .timelineExplorerMeta {
   display: flex;
@@ -832,6 +833,8 @@ textarea { min-height: 90px; resize: vertical; }
 .kg-node-type-dot--recovery       { background: #1abc9c; }
 .kg-node-type-dot--memory         { background: #f39c12; }
 .kg-node-type-dot--understanding  { background: #ec7063; }
+.kg-node-type-dot--mission        { background: #5dade2; }
+.kg-node-type-dot--mission_step   { background: #85c1e9; }
 
 .kg-type-badge { font-size: 9px; letter-spacing: .12em; padding: 2px 7px; border-radius: 2px; font-weight: 700; }
 .kg-type-badge--priority       { background: rgba(192,57,43,.2); color: #e07060; }
@@ -844,6 +847,32 @@ textarea { min-height: 90px; resize: vertical; }
 .kg-type-badge--recovery       { background: rgba(26,188,156,.2); color: #76d7c4; }
 .kg-type-badge--memory         { background: rgba(243,156,18,.2); color: #f9ca80; }
 .kg-type-badge--understanding  { background: rgba(236,112,99,.2); color: #f5b7b1; }
+.kg-type-badge--mission        { background: rgba(93,173,226,.2); color: #aed6f1; }
+.kg-type-badge--mission_step   { background: rgba(133,193,233,.2); color: #d6eaf8; }
+
+/* -- Build 012: Mission Planner -------------------------------------------- */
+.mission-planner { padding: 28px; }
+.mission-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 14px; }
+@media (max-width: 900px) { .mission-grid { grid-template-columns: 1fr; } }
+.mission-card { border: 1px solid rgba(255,255,255,.08); background: rgba(255,255,255,.03); border-radius: 4px; padding: 14px 16px; }
+.mission-card--wide { grid-column: 1 / -1; }
+.mission-label { display: flex; flex-direction: column; gap: 8px; font-size: 12px; color: #8fa5b9; }
+.mission-label textarea, .mission-input, .mission-card textarea { width: 100%; background: rgba(0,0,0,.24); color: #dde4ec; border: 1px solid rgba(255,255,255,.12); border-radius: 3px; padding: 8px 10px; }
+.mission-plan-row { width: 100%; margin: 6px 0; display: flex; justify-content: space-between; align-items: center; background: rgba(255,255,255,.02); border: 1px solid rgba(255,255,255,.08); color: #dde4ec; padding: 8px 10px; border-radius: 3px; }
+.mission-plan-row--active { border-color: rgba(197,162,83,.5); }
+.mission-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.mission-actions button, .mission-step-actions button { border: 1px solid rgba(255,255,255,.15); background: rgba(255,255,255,.04); color: #dde4ec; padding: 6px 10px; border-radius: 3px; }
+.mission-step-row { display: grid; grid-template-columns: 1fr auto; gap: 12px; border-top: 1px solid rgba(255,255,255,.06); padding: 10px 0; }
+.mission-step-row ul { margin: 6px 0 0; padding-left: 18px; color: #8fa5b9; font-size: 12px; }
+.mission-step-actions { display: flex; flex-direction: column; gap: 6px; }
+.mission-evidence { font-size: 12px; color: #8fa5b9; }
+.mission-progress-bar { width: 100%; height: 8px; border-radius: 99px; background: rgba(255,255,255,.08); overflow: hidden; margin: 8px 0; }
+.mission-progress-bar span { display: block; height: 100%; background: linear-gradient(90deg,#c5a253,#e0c37d); }
+.mission-stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.mission-stats-grid div { background: rgba(255,255,255,.02); border: 1px solid rgba(255,255,255,.07); padding: 8px 10px; border-radius: 3px; display: flex; justify-content: space-between; }
+.mission-risk { color: #e07060; font-size: 12px; }
+.mission-history-item, .mission-timeline-item { border-top: 1px solid rgba(255,255,255,.06); padding: 10px 0; }
+.mission-timeline-item span { color: #8fa5b9; font-size: 11px; }
 
 .kg-detail { border-left: 1px solid rgba(255,255,255,.07); padding-left: 20px; }
 .kg-no-selection { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; color: #5a6a7a; text-align: center; gap: 12px; }

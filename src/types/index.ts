@@ -18,6 +18,8 @@ export type {
   GraphNode,
   GraphEdge,
   KnowledgeGraphData,
+  MissionPlan,
+  MissionStep,
 } from '../localData'
 
 export type {

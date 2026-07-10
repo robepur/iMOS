@@ -9,6 +9,7 @@ const NODE_TYPE_LABELS: Record<GraphNode['type'], string> = {
   priority: 'Priority', commitment: 'Commitment', decision: 'Decision',
   reflection: 'Reflection', timeline: 'Timeline', secret: 'Secret',
   recommendation: 'Recommendation', recovery: 'Recovery', memory: 'Memory', understanding: 'Understanding',
+  mission: 'Mission', mission_step: 'Mission Step',
 }
 
 type Props = {
