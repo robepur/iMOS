@@ -1,10 +1,11 @@
 import { lazy, Suspense, useMemo, useState } from 'react'
-import { Clock3, KeyRound, ListChecks, Lock, LockKeyhole, Network, ShieldCheck, Zap } from 'lucide-react'
+import { BrainCircuit, Clock3, KeyRound, ListChecks, Lock, LockKeyhole, Network, ShieldCheck, Zap } from 'lucide-react'
 import { useVault } from './hooks/useVault'
 import { usePriorities } from './hooks/usePriorities'
 import { useSecrets } from './hooks/useSecrets'
 import { useRecommendations } from './hooks/useRecommendations'
 import { useKnowledgeGraph } from './hooks/useKnowledgeGraph'
+import { useUnderstanding } from './hooks/useUnderstanding'
 import { RosieEngine } from './services/RosieEngine'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import VaultGate from './features/vault/VaultGate'
@@ -12,12 +13,13 @@ import DataPanel from './features/vault/DataPanel'
 import { Arrival, Brief, FocusView, Reflection, TimelineItem } from './features/arrival/OperatingLoop'
 import PriorityConsole from './features/priorities/PriorityConsole'
 
-const ReviewCenter          = lazy(() => import('./features/review/ReviewCenter'))
-const RecoveryConsole       = lazy(() => import('./features/recovery/RecoveryConsole'))
-const SecretsConsole        = lazy(() => import('./features/secrets/SecretsConsole'))
-const ReflectionHistory     = lazy(() => import('./features/reflection/ReflectionHistory'))
-const RecommendationCenter  = lazy(() => import('./features/rosie/RecommendationCenter'))
-const KnowledgeGraphViewer  = lazy(() => import('./features/knowledge/KnowledgeGraphViewer'))
+const ReviewCenter           = lazy(() => import('./features/review/ReviewCenter'))
+const RecoveryConsole        = lazy(() => import('./features/recovery/RecoveryConsole'))
+const SecretsConsole         = lazy(() => import('./features/secrets/SecretsConsole'))
+const ReflectionHistory      = lazy(() => import('./features/reflection/ReflectionHistory'))
+const RecommendationCenter   = lazy(() => import('./features/rosie/RecommendationCenter'))
+const KnowledgeGraphViewer   = lazy(() => import('./features/knowledge/KnowledgeGraphViewer'))
+const UnderstandingDashboard = lazy(() => import('./features/understanding/UnderstandingDashboard'))
 
 type Mode = 'arrival' | 'brief' | 'focus' | 'reflection'
 
@@ -27,16 +29,18 @@ export default function App() {
   const secrets = useSecrets(vault.data)
   const { active: recs, patterns, criticalCount: recCritical } = useRecommendations(vault.data)
   const { graph, getStats } = useKnowledgeGraph(vault.data)
+  const { understanding } = useUnderstanding(vault.data)
 
   const [mode, setMode] = useState<Mode>('arrival')
-  const [showDataPanel, setShowDataPanel]       = useState(false)
-  const [showRecovery, setShowRecovery]         = useState(false)
-  const [showSecrets, setShowSecrets]           = useState(false)
-  const [showPriorities, setShowPriorities]     = useState(false)
-  const [showReflections, setShowReflections]   = useState(false)
-  const [showReview, setShowReview]             = useState(false)
-  const [showRosie, setShowRosie]               = useState(false)
-  const [showKnowledge, setShowKnowledge]       = useState(false)
+  const [showDataPanel, setShowDataPanel]           = useState(false)
+  const [showRecovery, setShowRecovery]             = useState(false)
+  const [showSecrets, setShowSecrets]               = useState(false)
+  const [showPriorities, setShowPriorities]         = useState(false)
+  const [showReflections, setShowReflections]       = useState(false)
+  const [showReview, setShowReview]                 = useState(false)
+  const [showRosie, setShowRosie]                   = useState(false)
+  const [showKnowledge, setShowKnowledge]           = useState(false)
+  const [showUnderstanding, setShowUnderstanding]   = useState(false)
 
   const date = useMemo(() => new Intl.DateTimeFormat('en-US', { weekday: 'long', month: 'long', day: 'numeric' }).format(new Date()), [])
 
@@ -48,6 +52,7 @@ export default function App() {
   const healthSignals = RosieEngine.getHealthSignals(data)
   const openCommitments = data.commitments.filter((c) => c.status === 'open').length
   const graphStats = getStats()
+  const driftCritical = understanding?.drift.hasCritical ?? false
 
   const stateItems = [
     ['Executive State', mode === 'focus' ? 'Focused' : 'Aware'],
@@ -66,6 +71,9 @@ export default function App() {
           <button className="utilityButton" onClick={() => setShowReview(true)}><ShieldCheck size={16} /> REVIEW</button>
           <button className={`utilityButton${recs.length > 0 ? ' utilityButton--alert' : ''}`} onClick={() => setShowRosie(true)}>
             <Zap size={16} /> ROSIE{recs.length > 0 ? ` (${recs.length})` : ''}
+          </button>
+          <button className={`utilityButton${driftCritical ? ' utilityButton--alert' : ''}`} onClick={() => setShowUnderstanding(true)}>
+            <BrainCircuit size={16} /> UNDERSTAND
           </button>
           <button className="utilityButton" onClick={() => setShowKnowledge(true)}><Network size={16} /> KNOWLEDGE</button>
           <button className="utilityButton" onClick={() => setShowPriorities(true)}><ListChecks size={16} /> PRIORITIES</button>
@@ -87,6 +95,7 @@ export default function App() {
           {showReview && <ReviewCenter data={data} onDeleteReflection={vault.deleteReflection} onClose={() => setShowReview(false)} />}
           {showRosie && <RecommendationCenter recs={recs} patterns={patterns} healthSignals={healthSignals} onDismiss={vault.dismissRecommendation} onSnooze={vault.snoozeRecommendation} onClose={() => setShowRosie(false)} />}
           {showKnowledge && <KnowledgeGraphViewer graph={graph} onClose={() => setShowKnowledge(false)} />}
+          {showUnderstanding && understanding && <UnderstandingDashboard understanding={understanding} onClose={() => setShowUnderstanding(false)} />}
         </Suspense>
       </ErrorBoundary>
 
