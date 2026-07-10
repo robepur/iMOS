@@ -34,6 +34,21 @@ jobs:
       - name: Unit tests
         run: pnpm test
 
+      - name: Mission integrity tests
+        run: pnpm run test:missions
+
+      - name: Migration compatibility tests
+        run: pnpm run test:migration
+
+      - name: Recovery and crypto tests
+        run: pnpm run test:recovery
+
+      - name: Security boundary checks
+        run: pnpm run test:security-boundaries
+
+      - name: Synthetic performance baseline
+        run: pnpm run test:performance
+
       - name: Production build
         run: pnpm run build
 
