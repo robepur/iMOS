@@ -655,3 +655,15 @@ textarea { min-height: 90px; resize: vertical; }
   .historyToolbar { flex-direction: column; align-items: stretch; }
   .searchInput { min-width: 0; }
 }
+
+/* -- Error Boundary -- */
+
+.errorBoundary {
+  padding: 24px;
+  border: 1px solid #e05a5a;
+  background: rgba(224,90,90,.06);
+  text-align: center;
+}
+
+.errorBoundary h3 { color: #e05a5a; margin: 8px 0; }
+.errorBoundary p { font-size: 13px; color: #8fa5b9; margin: 0 0 16px; }
