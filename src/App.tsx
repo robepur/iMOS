@@ -4,28 +4,44 @@ import {
   CheckCircle2,
   Clock3,
   Download,
+  FileCheck2,
+  FlaskConical,
   Focus,
+  KeyRound,
   Lock,
   LockKeyhole,
   Plus,
   RotateCcw,
   ShieldCheck,
   Sparkles,
-  Unlock
+  Upload,
+  X
 } from 'lucide-react'
 import { Commitment, createId, createInitialData, Decision, PersonalData, TimelineEntry } from './localData'
 import {
   clearVault,
   exportEncryptedVault,
+  getRecoveryAudit,
   legacyDataExists,
   readLegacyData,
+  restoreBackup,
+  rotatePassphrase,
   saveVault,
+  testRecovery,
   unlockVault,
-  vaultExists
+  vaultExists,
+  verifyBackupPackage
 } from './vault'
 
 type Mode = 'arrival' | 'brief' | 'focus' | 'reflection'
 type VaultState = 'setup' | 'locked' | 'unlocked'
+type RecoveryAction = 'verify' | 'test' | 'restore' | 'rotate' | null
+
+type RecoveryStatus = {
+  tone: 'success' | 'error' | 'neutral'
+  title: string
+  detail: string
+}
 
 export default function App() {
   const [vaultState, setVaultState] = useState<VaultState>(() => vaultExists() ? 'locked' : 'setup')
@@ -33,6 +49,7 @@ export default function App() {
   const [passphrase, setPassphrase] = useState('')
   const [mode, setMode] = useState<Mode>('arrival')
   const [showDataPanel, setShowDataPanel] = useState(false)
+  const [showRecovery, setShowRecovery] = useState(false)
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
   const date = useMemo(() => new Intl.DateTimeFormat('en-US', { weekday: 'long', month: 'long', day: 'numeric' }).format(new Date()), [])
@@ -41,11 +58,7 @@ export default function App() {
     if (vaultState !== 'unlocked' || !data || !passphrase) return
     const timeout = window.setTimeout(async () => {
       setSaving(true)
-      try {
-        await saveVault(data, passphrase)
-      } finally {
-        setSaving(false)
-      }
+      try { await saveVault(data, passphrase) } finally { setSaving(false) }
     }, 250)
     return () => window.clearTimeout(timeout)
   }, [data, passphrase, vaultState])
@@ -80,6 +93,7 @@ export default function App() {
     setPassphrase('')
     setMode('arrival')
     setShowDataPanel(false)
+    setShowRecovery(false)
     setVaultState('locked')
   }
 
@@ -91,6 +105,7 @@ export default function App() {
     setPassphrase('')
     setMode('arrival')
     setShowDataPanel(false)
+    setShowRecovery(false)
     setVaultState('setup')
   }
 
@@ -147,6 +162,18 @@ export default function App() {
     setMode('arrival')
   }
 
+  async function restoreVault(backup: unknown, backupPassphrase: string) {
+    const recovered = await restoreBackup(backup, backupPassphrase)
+    setData(recovered)
+    setPassphrase(backupPassphrase)
+    setMode('arrival')
+  }
+
+  async function rotateVaultPassphrase(current: string, replacement: string) {
+    await rotatePassphrase(data, current, replacement)
+    setPassphrase(replacement)
+  }
+
   return <main className="shell">
     <header className="topbar">
       <div><p className="eyebrow">INDIVIDUAL MISSION OPERATING SYSTEM</p><h1>iMOS</h1></div>
@@ -158,12 +185,19 @@ export default function App() {
     </header>
 
     {showDataPanel && <section className="dataPanel panel">
-      <div><p className="eyebrow">BUILD 003 VAULT CONTROL</p><h3>Encrypted on this device.</h3><p>Personal data is encrypted with AES GCM using a passphrase derived key. The passphrase is held only in memory while this session is unlocked.</p></div>
+      <div><p className="eyebrow">BUILD 004 VAULT CONTROL</p><h3>Encrypted. Verifiable. Recoverable.</h3><p>Create a secure backup or open the Recovery Console to verify, test, restore, and rotate credentials.</p></div>
       <div className="dataActions">
-        <button className="secondaryButton" onClick={exportEncryptedVault}><Download size={16} /> EXPORT VAULT</button>
+        <button className="secondaryButton" onClick={() => void exportEncryptedVault()}><Download size={16} /> BACKUP</button>
+        <button className="secondaryButton" onClick={() => setShowRecovery(true)}><ShieldCheck size={16} /> RECOVERY</button>
         <button className="dangerButton" onClick={reset}><RotateCcw size={16} /> ERASE</button>
       </div>
     </section>}
+
+    {showRecovery && <RecoveryConsole
+      onClose={() => setShowRecovery(false)}
+      onRestore={restoreVault}
+      onRotate={rotateVaultPassphrase}
+    />}
 
     <section className="statebar">{stateItems.map(([label, value]) => <div key={label}><span>{label}</span><strong>{value}</strong></div>)}</section>
 
@@ -182,6 +216,121 @@ export default function App() {
   </main>
 }
 
+function RecoveryConsole({ onClose, onRestore, onRotate }: { onClose: () => void; onRestore: (backup: unknown, passphrase: string) => Promise<void>; onRotate: (current: string, replacement: string) => Promise<void> }) {
+  const [action, setAction] = useState<RecoveryAction>(null)
+  const [backup, setBackup] = useState<unknown>(null)
+  const [fileName, setFileName] = useState('No backup selected')
+  const [backupPassphrase, setBackupPassphrase] = useState('')
+  const [currentPassphrase, setCurrentPassphrase] = useState('')
+  const [newPassphrase, setNewPassphrase] = useState('')
+  const [confirmPassphrase, setConfirmPassphrase] = useState('')
+  const [working, setWorking] = useState(false)
+  const [status, setStatus] = useState<RecoveryStatus>({ tone: 'neutral', title: 'Recovery ready', detail: 'Select an action to begin.' })
+  const audit = getRecoveryAudit().slice(0, 4)
+
+  async function selectBackup(file: File | undefined) {
+    if (!file) return
+    setStatus({ tone: 'neutral', title: 'Reading backup', detail: 'The file has not been trusted or decrypted.' })
+    try {
+      const parsed = JSON.parse(await file.text()) as unknown
+      setBackup(parsed)
+      setFileName(file.name)
+      setStatus({ tone: 'neutral', title: 'Backup loaded', detail: 'Choose Verify or Test Recovery before restoration.' })
+    } catch {
+      setBackup(null)
+      setFileName('No backup selected')
+      setStatus({ tone: 'error', title: 'Backup rejected', detail: 'The selected file is not valid JSON.' })
+    }
+  }
+
+  async function run(task: () => Promise<void>) {
+    setWorking(true)
+    try { await task() } catch (reason) {
+      setStatus({ tone: 'error', title: 'Operation failed', detail: reason instanceof Error ? reason.message : 'The recovery operation failed closed.' })
+    } finally { setWorking(false) }
+  }
+
+  async function verify() {
+    if (!backup) throw new Error('Select an iMOS backup first.')
+    const verified = await verifyBackupPackage(backup)
+    setStatus({ tone: 'success', title: 'Backup verified', detail: `Created ${new Date(verified.createdAt).toLocaleString()}. Checksum and package controls passed.` })
+  }
+
+  async function test() {
+    if (!backup) throw new Error('Select an iMOS backup first.')
+    if (!backupPassphrase) throw new Error('Enter the backup passphrase.')
+    const result = await testRecovery(backup, backupPassphrase)
+    setStatus({ tone: 'success', title: 'Recovery test passed', detail: `${result.records} records decrypted and validated in memory. The active vault was not changed.` })
+  }
+
+  async function restore() {
+    if (!backup) throw new Error('Select an iMOS backup first.')
+    if (!backupPassphrase) throw new Error('Enter the backup passphrase.')
+    if (!window.confirm('Replace the active vault with this verified backup?')) return
+    await onRestore(backup, backupPassphrase)
+    setStatus({ tone: 'success', title: 'Vault restored', detail: 'The active vault was replaced and reopened using the backup passphrase.' })
+  }
+
+  async function rotate() {
+    if (newPassphrase.length < 12) throw new Error('The new passphrase must contain at least 12 characters.')
+    if (newPassphrase !== confirmPassphrase) throw new Error('New passphrases do not match.')
+    await onRotate(currentPassphrase, newPassphrase)
+    setCurrentPassphrase('')
+    setNewPassphrase('')
+    setConfirmPassphrase('')
+    setStatus({ tone: 'success', title: 'Passphrase rotated', detail: 'The vault was re encrypted and verified with new cryptographic material.' })
+  }
+
+  return <section className="recoveryConsole panel" aria-label="Secure Backup and Vault Recovery">
+    <div className="recoveryHeader">
+      <div><p className="eyebrow">BUILD 004 RECOVERY CONSOLE</p><h2>Secure Backup and Vault Recovery</h2><p>Every imported file remains untrusted until verification succeeds.</p></div>
+      <button className="iconButton" onClick={onClose} aria-label="Close recovery console"><X size={18} /></button>
+    </div>
+
+    <div className={`recoveryStatus ${status.tone}`}>
+      <ShieldCheck size={20} />
+      <div><strong>{status.title}</strong><p>{status.detail}</p></div>
+    </div>
+
+    <div className="recoveryGrid">
+      <label className="backupDrop">
+        <Upload size={24} />
+        <strong>SELECT .IMOS BACKUP</strong>
+        <span>{fileName}</span>
+        <input type="file" accept=".imos,application/json" onChange={(event) => void selectBackup(event.target.files?.[0])} />
+      </label>
+
+      <div className="recoveryActions">
+        <button className={action === 'verify' ? '' : 'secondaryButton'} onClick={() => setAction('verify')}><FileCheck2 size={17} /> VERIFY BACKUP</button>
+        <button className={action === 'test' ? '' : 'secondaryButton'} onClick={() => setAction('test')}><FlaskConical size={17} /> TEST RECOVERY</button>
+        <button className={action === 'restore' ? '' : 'secondaryButton'} onClick={() => setAction('restore')}><Upload size={17} /> RESTORE VAULT</button>
+        <button className={action === 'rotate' ? '' : 'secondaryButton'} onClick={() => setAction('rotate')}><KeyRound size={17} /> ROTATE PASSPHRASE</button>
+      </div>
+    </div>
+
+    {action === 'verify' && <div className="recoveryOperation"><h3>Verify Backup</h3><p>Validate package format, version, KDF strength, and SHA 256 checksum.</p><button disabled={working} onClick={() => void run(verify)}>{working ? 'VERIFYING' : 'RUN VERIFICATION'}</button></div>}
+
+    {(action === 'test' || action === 'restore') && <div className="recoveryOperation">
+      <h3>{action === 'test' ? 'Test Recovery' : 'Restore Vault'}</h3>
+      <p>{action === 'test' ? 'Decrypt and validate the backup in memory without changing the active vault.' : 'Verify, decrypt, and replace the active vault as one controlled operation.'}</p>
+      <label>BACKUP PASSPHRASE<input type="password" value={backupPassphrase} onChange={(event) => setBackupPassphrase(event.target.value)} autoComplete="current-password" /></label>
+      <button disabled={working} onClick={() => void run(action === 'test' ? test : restore)}>{working ? 'WORKING' : action === 'test' ? 'RUN RECOVERY TEST' : 'RESTORE VERIFIED BACKUP'}</button>
+    </div>}
+
+    {action === 'rotate' && <div className="recoveryOperation">
+      <h3>Rotate Passphrase</h3><p>Authenticate the current passphrase. Re encrypt and verify the vault before committing the replacement.</p>
+      <div className="rotationGrid">
+        <label>CURRENT PASSPHRASE<input type="password" value={currentPassphrase} onChange={(event) => setCurrentPassphrase(event.target.value)} autoComplete="current-password" /></label>
+        <label>NEW PASSPHRASE<input type="password" minLength={12} value={newPassphrase} onChange={(event) => setNewPassphrase(event.target.value)} autoComplete="new-password" /></label>
+        <label>CONFIRM NEW PASSPHRASE<input type="password" minLength={12} value={confirmPassphrase} onChange={(event) => setConfirmPassphrase(event.target.value)} autoComplete="new-password" /></label>
+      </div>
+      <button disabled={working} onClick={() => void run(rotate)}>{working ? 'ROTATING' : 'ROTATE AND VERIFY'}</button>
+    </div>}
+
+    <div className="recoveryAudit"><p className="eyebrow">RECENT RECOVERY ACTIVITY</p>{audit.length === 0 ? <p>No recovery events recorded.</p> : audit.map((event) => <div key={event.id}><span>{new Date(event.createdAt).toLocaleString()}</span><strong>{event.type.replaceAll('-', ' ')}</strong><p>{event.detail}</p></div>)}</div>
+  </section>
+}
+
 function VaultGate({ state, error, onCreate, onUnlock }: { state: 'setup' | 'locked'; error: string; onCreate: (passphrase: string) => Promise<void>; onUnlock: (passphrase: string) => Promise<void> }) {
   const [first, setFirst] = useState('')
   const [confirm, setConfirm] = useState('')
@@ -194,22 +343,7 @@ function VaultGate({ state, error, onCreate, onUnlock }: { state: 'setup' | 'loc
     try { state === 'setup' ? await onCreate(first) : await onUnlock(first) } finally { setWorking(false) }
   }
 
-  return <main className="vaultShell">
-    <section className="vaultCard panel">
-      <div className="vaultIcon">{state === 'setup' ? <LockKeyhole size={30} /> : <Lock size={30} />}</div>
-      <p className="eyebrow">iMOS ENCRYPTED PERSONAL VAULT</p>
-      <h1>{state === 'setup' ? 'Create your vault.' : 'Vault locked.'}</h1>
-      <p className="lead">{state === 'setup' ? 'Choose a strong passphrase. iMOS cannot recover it if it is lost.' : 'Enter your passphrase to restore your private operating context.'}</p>
-      <form className="vaultForm" onSubmit={submit}>
-        <label>PASSPHRASE<input autoFocus type="password" minLength={12} required value={first} onChange={(event) => setFirst(event.target.value)} autoComplete={state === 'setup' ? 'new-password' : 'current-password'} /></label>
-        {state === 'setup' && <label>CONFIRM PASSPHRASE<input type="password" minLength={12} required value={confirm} onChange={(event) => setConfirm(event.target.value)} autoComplete="new-password" /></label>}
-        {state === 'setup' && confirm && first !== confirm && <p className="formError">Passphrases do not match.</p>}
-        {error && <p className="formError">{error}</p>}
-        <button disabled={working || (state === 'setup' && first !== confirm)}>{state === 'setup' ? <LockKeyhole size={17} /> : <Unlock size={17} />}{working ? 'WORKING' : state === 'setup' ? 'CREATE VAULT' : 'UNLOCK VAULT'}</button>
-      </form>
-      <p className="vaultNotice">AES GCM encryption. PBKDF2 SHA 256. Local browser storage only. No ARGUS connection.</p>
-    </section>
-  </main>
+  return <main className="vaultShell"><section className="vaultCard panel"><div className="vaultIcon">{state === 'setup' ? <LockKeyhole size={30} /> : <Lock size={30} />}</div><p className="eyebrow">iMOS ENCRYPTED PERSONAL VAULT</p><h1>{state === 'setup' ? 'Create your vault.' : 'Vault locked.'}</h1><p className="lead">{state === 'setup' ? 'Choose a strong passphrase. iMOS cannot recover it if it is lost.' : 'Enter your passphrase to restore your private operating context.'}</p><form className="vaultForm" onSubmit={submit}><label>PASSPHRASE<input autoFocus type="password" minLength={12} required value={first} onChange={(event) => setFirst(event.target.value)} autoComplete={state === 'setup' ? 'new-password' : 'current-password'} /></label>{state === 'setup' && <label>CONFIRM PASSPHRASE<input type="password" minLength={12} required value={confirm} onChange={(event) => setConfirm(event.target.value)} autoComplete="new-password" /></label>}{state === 'setup' && confirm && first !== confirm && <p className="formError">Passphrases do not match.</p>}{error && <p className="formError">{error}</p>}<button disabled={working || (state === 'setup' && first !== confirm)}>{state === 'setup' ? <LockKeyhole size={17} /> : <Unlock size={17} />}{working ? 'WORKING' : state === 'setup' ? 'CREATE VAULT' : 'UNLOCK VAULT'}</button></form><p className="vaultNotice">AES GCM encryption. PBKDF2 SHA 256. Local browser storage only. No ARGUS connection.</p></section></main>
 }
 
 function Arrival({ date, primary, onBegin }: { date: string; primary?: PersonalData['priorities'][number]; onBegin: () => void }) {
