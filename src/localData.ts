@@ -24,7 +24,7 @@ export type Decision = {
 
 export type TimelineEntry = {
   id: string
-  type: 'priority' | 'commitment' | 'decision' | 'reflection' | 'system'
+  type: 'priority' | 'commitment' | 'decision' | 'reflection' | 'system' | 'secret'
   title: string
   detail: string
   createdAt: string
@@ -38,6 +38,20 @@ export type Reflection = {
   createdAt: string
 }
 
+export type SecretRecord = {
+  id: string
+  title: string
+  category: string
+  username: string
+  password: string
+  url: string
+  notes: string
+  favorite: boolean
+  createdAt: string
+  updatedAt: string
+  lastAccessedAt?: string
+}
+
 export type PersonalData = {
   version: 1
   priorities: Priority[]
@@ -45,6 +59,7 @@ export type PersonalData = {
   decisions: Decision[]
   timeline: TimelineEntry[]
   reflections: Reflection[]
+  secrets?: SecretRecord[]
 }
 
 export function createInitialData(): PersonalData {
@@ -53,9 +68,9 @@ export function createInitialData(): PersonalData {
     version: 1,
     priorities: [
       {
-        id: 'priority-build-003',
-        title: 'Establish Build 003',
-        why: 'Protect personal continuity with authenticated local encryption.',
+        id: 'priority-build-005',
+        title: 'Establish Build 005',
+        why: 'Protect and control access to personal credentials and secure notes.',
         completed: false,
         createdAt
       }
@@ -63,12 +78,13 @@ export function createInitialData(): PersonalData {
     commitments: [],
     decisions: [],
     reflections: [],
+    secrets: [],
     timeline: [
       {
-        id: 'system-build-003',
+        id: 'system-build-005',
         type: 'system',
-        title: 'Build 003 initialized',
-        detail: 'Encrypted Personal Vault is ready for activation.',
+        title: 'Build 005 initialized',
+        detail: 'Secure Secrets and Credential Management is ready for activation.',
         createdAt
       }
     ]
