@@ -17,7 +17,8 @@ import {
   Upload,
   X
 } from 'lucide-react'
-import { Commitment, createId, createInitialData, Decision, PersonalData, TimelineEntry } from './localData'
+import { Commitment, createId, createInitialData, Decision, PersonalData, SecretRecord, TimelineEntry } from './localData'
+import SecretsConsole from './SecretsConsole'
 import {
   clearVault,
   exportEncryptedVault,
@@ -43,6 +44,10 @@ type RecoveryStatus = {
   detail: string
 }
 
+function normalizeData(value: PersonalData): PersonalData {
+  return { ...value, secrets: value.secrets ?? [] }
+}
+
 export default function App() {
   const [vaultState, setVaultState] = useState<VaultState>(() => vaultExists() ? 'locked' : 'setup')
   const [data, setData] = useState<PersonalData | null>(null)
@@ -50,6 +55,7 @@ export default function App() {
   const [mode, setMode] = useState<Mode>('arrival')
   const [showDataPanel, setShowDataPanel] = useState(false)
   const [showRecovery, setShowRecovery] = useState(false)
+  const [showSecrets, setShowSecrets] = useState(false)
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
   const date = useMemo(() => new Intl.DateTimeFormat('en-US', { weekday: 'long', month: 'long', day: 'numeric' }).format(new Date()), [])
@@ -66,7 +72,7 @@ export default function App() {
   async function createVault(newPassphrase: string) {
     setError('')
     try {
-      const startingData = legacyDataExists() ? readLegacyData() ?? createInitialData() : createInitialData()
+      const startingData = normalizeData(legacyDataExists() ? readLegacyData() ?? createInitialData() : createInitialData())
       await saveVault(startingData, newPassphrase)
       setPassphrase(newPassphrase)
       setData(startingData)
@@ -79,7 +85,7 @@ export default function App() {
   async function unlock(pass: string) {
     setError('')
     try {
-      const unlocked = await unlockVault(pass)
+      const unlocked = normalizeData(await unlockVault(pass))
       setPassphrase(pass)
       setData(unlocked)
       setVaultState('unlocked')
@@ -94,6 +100,7 @@ export default function App() {
     setMode('arrival')
     setShowDataPanel(false)
     setShowRecovery(false)
+    setShowSecrets(false)
     setVaultState('locked')
   }
 
@@ -106,6 +113,7 @@ export default function App() {
     setMode('arrival')
     setShowDataPanel(false)
     setShowRecovery(false)
+    setShowSecrets(false)
     setVaultState('setup')
   }
 
@@ -115,16 +123,26 @@ export default function App() {
 
   const openCommitments = data.commitments.filter((item) => item.status === 'open').length
   const openDecisions = data.decisions.filter((item) => item.status === 'open').length
+  const secretCount = data.secrets?.length ?? 0
   const primary = data.priorities.find((item) => !item.completed)
   const stateItems = [
     ['Executive State', mode === 'focus' ? 'Focused' : 'Aware'],
     ['Vault', saving ? 'Securing' : 'Encrypted'],
-    ['Decisions', openDecisions ? `${openDecisions} Open` : 'Clear'],
+    ['Secrets', secretCount ? `${secretCount} Secured` : 'Ready'],
     ['Commitments', openCommitments ? `${openCommitments} Open` : 'On Track']
   ]
 
   function addTimeline(entry: Omit<TimelineEntry, 'id' | 'createdAt'>) {
     setData((current) => current ? ({ ...current, timeline: [{ ...entry, id: createId('timeline'), createdAt: new Date().toISOString() }, ...current.timeline] }) : current)
+  }
+
+  function updateSecrets(records: SecretRecord[], event: string, detail: string) {
+    const createdAt = new Date().toISOString()
+    setData((current) => current ? ({
+      ...current,
+      secrets: records,
+      timeline: [{ id: createId('timeline'), type: 'secret', title: event, detail, createdAt }, ...current.timeline]
+    }) : current)
   }
 
   function addCommitment(title: string, due: string) {
@@ -163,7 +181,7 @@ export default function App() {
   }
 
   async function restoreVault(backup: unknown, backupPassphrase: string) {
-    const recovered = await restoreBackup(backup, backupPassphrase)
+    const recovered = normalizeData(await restoreBackup(backup, backupPassphrase))
     setData(recovered)
     setPassphrase(backupPassphrase)
     setMode('arrival')
@@ -178,6 +196,7 @@ export default function App() {
     <header className="topbar">
       <div><p className="eyebrow">INDIVIDUAL MISSION OPERATING SYSTEM</p><h1>iMOS</h1></div>
       <div className="topActions">
+        <button className="utilityButton" onClick={() => setShowSecrets(true)}><KeyRound size={16} /> SECRETS</button>
         <button className="utilityButton" onClick={() => setShowDataPanel((value) => !value)}><LockKeyhole size={16} /> VAULT</button>
         <button className="utilityButton" onClick={lock}><Lock size={16} /> LOCK</button>
         <div className="secure"><ShieldCheck size={17} /> ENCRYPTED MODE</div>
@@ -185,13 +204,15 @@ export default function App() {
     </header>
 
     {showDataPanel && <section className="dataPanel panel">
-      <div><p className="eyebrow">BUILD 004 VAULT CONTROL</p><h3>Encrypted. Verifiable. Recoverable.</h3><p>Create a secure backup or open the Recovery Console to verify, test, restore, and rotate credentials.</p></div>
+      <div><p className="eyebrow">BUILD 005 VAULT CONTROL</p><h3>Encrypted. Recoverable. Controlled.</h3><p>Secrets, secure notes, recovery data, and operating context remain inside the encrypted personal vault.</p></div>
       <div className="dataActions">
         <button className="secondaryButton" onClick={() => void exportEncryptedVault()}><Download size={16} /> BACKUP</button>
         <button className="secondaryButton" onClick={() => setShowRecovery(true)}><ShieldCheck size={16} /> RECOVERY</button>
         <button className="dangerButton" onClick={reset}><RotateCcw size={16} /> ERASE</button>
       </div>
     </section>}
+
+    {showSecrets && <SecretsConsole records={data.secrets ?? []} onChange={updateSecrets} onClose={() => setShowSecrets(false)} />}
 
     {showRecovery && <RecoveryConsole
       onClose={() => setShowRecovery(false)}
@@ -287,19 +308,10 @@ function RecoveryConsole({ onClose, onRestore, onRotate }: { onClose: () => void
       <button className="iconButton" onClick={onClose} aria-label="Close recovery console"><X size={18} /></button>
     </div>
 
-    <div className={`recoveryStatus ${status.tone}`}>
-      <ShieldCheck size={20} />
-      <div><strong>{status.title}</strong><p>{status.detail}</p></div>
-    </div>
+    <div className={`recoveryStatus ${status.tone}`}><ShieldCheck size={20} /><div><strong>{status.title}</strong><p>{status.detail}</p></div></div>
 
     <div className="recoveryGrid">
-      <label className="backupDrop">
-        <Upload size={24} />
-        <strong>SELECT .IMOS BACKUP</strong>
-        <span>{fileName}</span>
-        <input type="file" accept=".imos,application/json" onChange={(event) => void selectBackup(event.target.files?.[0])} />
-      </label>
-
+      <label className="backupDrop"><Upload size={24} /><strong>SELECT .IMOS BACKUP</strong><span>{fileName}</span><input type="file" accept=".imos,application/json" onChange={(event) => void selectBackup(event.target.files?.[0])} /></label>
       <div className="recoveryActions">
         <button className={action === 'verify' ? '' : 'secondaryButton'} onClick={() => setAction('verify')}><FileCheck2 size={17} /> VERIFY BACKUP</button>
         <button className={action === 'test' ? '' : 'secondaryButton'} onClick={() => setAction('test')}><FlaskConical size={17} /> TEST RECOVERY</button>
@@ -310,22 +322,9 @@ function RecoveryConsole({ onClose, onRestore, onRotate }: { onClose: () => void
 
     {action === 'verify' && <div className="recoveryOperation"><h3>Verify Backup</h3><p>Validate package format, version, KDF strength, and SHA 256 checksum.</p><button disabled={working} onClick={() => void run(verify)}>{working ? 'VERIFYING' : 'RUN VERIFICATION'}</button></div>}
 
-    {(action === 'test' || action === 'restore') && <div className="recoveryOperation">
-      <h3>{action === 'test' ? 'Test Recovery' : 'Restore Vault'}</h3>
-      <p>{action === 'test' ? 'Decrypt and validate the backup in memory without changing the active vault.' : 'Verify, decrypt, and replace the active vault as one controlled operation.'}</p>
-      <label>BACKUP PASSPHRASE<input type="password" value={backupPassphrase} onChange={(event) => setBackupPassphrase(event.target.value)} autoComplete="current-password" /></label>
-      <button disabled={working} onClick={() => void run(action === 'test' ? test : restore)}>{working ? 'WORKING' : action === 'test' ? 'RUN RECOVERY TEST' : 'RESTORE VERIFIED BACKUP'}</button>
-    </div>}
+    {(action === 'test' || action === 'restore') && <div className="recoveryOperation"><h3>{action === 'test' ? 'Test Recovery' : 'Restore Vault'}</h3><p>{action === 'test' ? 'Decrypt and validate the backup in memory without changing the active vault.' : 'Verify, decrypt, and replace the active vault as one controlled operation.'}</p><label>BACKUP PASSPHRASE<input type="password" value={backupPassphrase} onChange={(event) => setBackupPassphrase(event.target.value)} autoComplete="current-password" /></label><button disabled={working} onClick={() => void run(action === 'test' ? test : restore)}>{working ? 'WORKING' : action === 'test' ? 'RUN RECOVERY TEST' : 'RESTORE VERIFIED BACKUP'}</button></div>}
 
-    {action === 'rotate' && <div className="recoveryOperation">
-      <h3>Rotate Passphrase</h3><p>Authenticate the current passphrase. Re encrypt and verify the vault before committing the replacement.</p>
-      <div className="rotationGrid">
-        <label>CURRENT PASSPHRASE<input type="password" value={currentPassphrase} onChange={(event) => setCurrentPassphrase(event.target.value)} autoComplete="current-password" /></label>
-        <label>NEW PASSPHRASE<input type="password" minLength={12} value={newPassphrase} onChange={(event) => setNewPassphrase(event.target.value)} autoComplete="new-password" /></label>
-        <label>CONFIRM NEW PASSPHRASE<input type="password" minLength={12} value={confirmPassphrase} onChange={(event) => setConfirmPassphrase(event.target.value)} autoComplete="new-password" /></label>
-      </div>
-      <button disabled={working} onClick={() => void run(rotate)}>{working ? 'ROTATING' : 'ROTATE AND VERIFY'}</button>
-    </div>}
+    {action === 'rotate' && <div className="recoveryOperation"><h3>Rotate Passphrase</h3><p>Authenticate the current passphrase. Re encrypt and verify the vault before committing the replacement.</p><div className="rotationGrid"><label>CURRENT PASSPHRASE<input type="password" value={currentPassphrase} onChange={(event) => setCurrentPassphrase(event.target.value)} autoComplete="current-password" /></label><label>NEW PASSPHRASE<input type="password" minLength={12} value={newPassphrase} onChange={(event) => setNewPassphrase(event.target.value)} autoComplete="new-password" /></label><label>CONFIRM NEW PASSPHRASE<input type="password" minLength={12} value={confirmPassphrase} onChange={(event) => setConfirmPassphrase(event.target.value)} autoComplete="new-password" /></label></div><button disabled={working} onClick={() => void run(rotate)}>{working ? 'ROTATING' : 'ROTATE AND VERIFY'}</button></div>}
 
     <div className="recoveryAudit"><p className="eyebrow">RECENT RECOVERY ACTIVITY</p>{audit.length === 0 ? <p>No recovery events recorded.</p> : audit.map((event) => <div key={event.id}><span>{new Date(event.createdAt).toLocaleString()}</span><strong>{event.type.replaceAll('-', ' ')}</strong><p>{event.detail}</p></div>)}</div>
   </section>
@@ -343,7 +342,7 @@ function VaultGate({ state, error, onCreate, onUnlock }: { state: 'setup' | 'loc
     try { state === 'setup' ? await onCreate(first) : await onUnlock(first) } finally { setWorking(false) }
   }
 
-  return <main className="vaultShell"><section className="vaultCard panel"><div className="vaultIcon">{state === 'setup' ? <LockKeyhole size={30} /> : <Lock size={30} />}</div><p className="eyebrow">iMOS ENCRYPTED PERSONAL VAULT</p><h1>{state === 'setup' ? 'Create your vault.' : 'Vault locked.'}</h1><p className="lead">{state === 'setup' ? 'Choose a strong passphrase. iMOS cannot recover it if it is lost.' : 'Enter your passphrase to restore your private operating context.'}</p><form className="vaultForm" onSubmit={submit}><label>PASSPHRASE<input autoFocus type="password" minLength={12} required value={first} onChange={(event) => setFirst(event.target.value)} autoComplete={state === 'setup' ? 'new-password' : 'current-password'} /></label>{state === 'setup' && <label>CONFIRM PASSPHRASE<input type="password" minLength={12} required value={confirm} onChange={(event) => setConfirm(event.target.value)} autoComplete="new-password" /></label>}{state === 'setup' && confirm && first !== confirm && <p className="formError">Passphrases do not match.</p>}{error && <p className="formError">{error}</p>}<button disabled={working || (state === 'setup' && first !== confirm)}>{state === 'setup' ? <LockKeyhole size={17} /> : <Unlock size={17} />}{working ? 'WORKING' : state === 'setup' ? 'CREATE VAULT' : 'UNLOCK VAULT'}</button></form><p className="vaultNotice">AES GCM encryption. PBKDF2 SHA 256. Local browser storage only. No ARGUS connection.</p></section></main>
+  return <main className="vaultShell"><section className="vaultCard panel"><div className="vaultIcon">{state === 'setup' ? <LockKeyhole size={30} /> : <Lock size={30} />}</div><p className="eyebrow">iMOS ENCRYPTED PERSONAL VAULT</p><h1>{state === 'setup' ? 'Create your vault.' : 'Vault locked.'}</h1><p className="lead">{state === 'setup' ? 'Choose a strong passphrase. iMOS cannot recover it if it is lost.' : 'Enter your passphrase to restore your private operating context.'}</p><form className="vaultForm" onSubmit={submit}><label>PASSPHRASE<input autoFocus type="password" minLength={12} required value={first} onChange={(event) => setFirst(event.target.value)} autoComplete={state === 'setup' ? 'new-password' : 'current-password'} /></label>{state === 'setup' && <label>CONFIRM PASSPHRASE<input type="password" minLength={12} required value={confirm} onChange={(event) => setConfirm(event.target.value)} autoComplete="new-password" /></label>}{state === 'setup' && confirm && first !== confirm && <p className="formError">Passphrases do not match.</p>}{error && <p className="formError">{error}</p>}<button disabled={working || (state === 'setup' && first !== confirm)}>{state === 'setup' ? <LockKeyhole size={17} /> : <KeyRound size={17} />}{working ? 'WORKING' : state === 'setup' ? 'CREATE VAULT' : 'UNLOCK VAULT'}</button></form><p className="vaultNotice">AES GCM encryption. PBKDF2 SHA 256. Local browser storage only. No ARGUS connection.</p></section></main>
 }
 
 function Arrival({ date, primary, onBegin }: { date: string; primary?: PersonalData['priorities'][number]; onBegin: () => void }) {
@@ -355,11 +354,11 @@ function Brief({ data, onAddCommitment, onAddDecision, onToggleCommitment, onTog
   const commitments = data.commitments.filter((item) => item.status === 'open').slice(0, 3)
   const decisions = data.decisions.filter((item) => item.status === 'open').slice(0, 3)
   const primary = data.priorities.find((item) => !item.completed)
-  return <div><p className="eyebrow">MORNING EXECUTIVE BRIEF</p><h2>Where we stand.</h2><div className="cards"><BriefCard label="PRIMARY MISSION" value={primary?.title ?? 'Define the next mission'} /><BriefCard label="COMMITMENTS" value={commitments.length ? `${commitments.length} require attention` : 'No critical risk'} /><BriefCard label="DECISIONS" value={decisions.length ? `${decisions.length} awaiting judgment` : 'No open decisions'} /><BriefCard label="VAULT" value="Encrypted and current" /></div><div className="recordGrid"><RecordList title="OPEN COMMITMENTS" items={commitments.map((item) => ({ id: item.id, title: item.title, meta: item.due || 'No due date' }))} onToggle={onToggleCommitment} /><RecordList title="OPEN DECISIONS" items={decisions.map((item) => ({ id: item.id, title: item.title, meta: item.context || 'No context added' }))} onToggle={onToggleDecision} /></div><div className="captureActions"><button className="secondaryButton" onClick={() => setCapture('commitment')}><Plus size={16} /> COMMITMENT</button><button className="secondaryButton" onClick={() => setCapture('decision')}><Plus size={16} /> DECISION</button></div>{capture === 'commitment' && <CommitmentForm onSave={(title, due) => { onAddCommitment(title, due); setCapture(null) }} onCancel={() => setCapture(null)} />}{capture === 'decision' && <DecisionForm onSave={(title, context) => { onAddDecision(title, context); setCapture(null) }} onCancel={() => setCapture(null)} />}<div className="recommendation"><strong>Rosie's recommendation</strong><p>Begin with one active priority. Your updates will be re encrypted automatically.</p></div><button onClick={onBegin}>ENTER FOCUS MODE <Focus size={17} /></button></div>
+  return <div><p className="eyebrow">MORNING EXECUTIVE BRIEF</p><h2>Where we stand.</h2><div className="cards"><BriefCard label="PRIMARY MISSION" value={primary?.title ?? 'Define the next mission'} /><BriefCard label="COMMITMENTS" value={commitments.length ? `${commitments.length} require attention` : 'No critical risk'} /><BriefCard label="DECISIONS" value={decisions.length ? `${decisions.length} awaiting judgment` : 'No open decisions'} /><BriefCard label="SECRETS" value={`${data.secrets?.length ?? 0} encrypted records`} /></div><div className="recordGrid"><RecordList title="OPEN COMMITMENTS" items={commitments.map((item) => ({ id: item.id, title: item.title, meta: item.due || 'No due date' }))} onToggle={onToggleCommitment} /><RecordList title="OPEN DECISIONS" items={decisions.map((item) => ({ id: item.id, title: item.title, meta: item.context || 'No context added' }))} onToggle={onToggleDecision} /></div><div className="captureActions"><button className="secondaryButton" onClick={() => setCapture('commitment')}><Plus size={16} /> COMMITMENT</button><button className="secondaryButton" onClick={() => setCapture('decision')}><Plus size={16} /> DECISION</button></div>{capture === 'commitment' && <CommitmentForm onSave={(title, due) => { onAddCommitment(title, due); setCapture(null) }} onCancel={() => setCapture(null)} />}{capture === 'decision' && <DecisionForm onSave={(title, context) => { onAddDecision(title, context); setCapture(null) }} onCancel={() => setCapture(null)} />}<div className="recommendation"><strong>Rosie's recommendation</strong><p>Begin with one active priority. Your updates and secrets will be re encrypted automatically.</p></div><button onClick={onBegin}>ENTER FOCUS MODE <Focus size={17} /></button></div>
 }
 
 function FocusView({ primary, onCompletePriority, onComplete }: { primary?: PersonalData['priorities'][number]; onCompletePriority: () => void; onComplete: () => void }) {
-  return <div><p className="eyebrow">FOCUS MODE</p><h2>{primary?.title ?? 'Define the next mission.'}</h2><p className="lead">One outcome. No unrelated information.</p><div className="focusGrid"><BriefCard label="OUTCOME" value={primary?.title ?? 'Create one clear outcome'} /><BriefCard label="WHY IT MATTERS" value={primary?.why ?? 'Direction must be established before execution.'} /><BriefCard label="DATA BOUNDARY" value="Encrypted local vault" /><BriefCard label="ARGUS" value="No connection" /></div><div className="captureActions">{primary && <button className="secondaryButton" onClick={onCompletePriority}><CheckCircle2 size={17} /> MARK PRIORITY COMPLETE</button>}<button onClick={onComplete}>COMPLETE SESSION <ArrowRight size={17} /></button></div></div>
+  return <div><p className="eyebrow">FOCUS MODE</p><h2>{primary?.title ?? 'Define the next mission.'}</h2><p className="lead">One outcome. No unrelated information.</p><div className="focusGrid"><BriefCard label="OUTCOME" value={primary?.title ?? 'Create one clear outcome'} /><BriefCard label="WHY IT MATTERS" value={primary?.why ?? 'Direction must be established before execution.'} /><BriefCard label="DATA BOUNDARY" value="Encrypted local vault" /><BriefCard label="AUTOFILL" value="Disabled by design" /></div><div className="captureActions">{primary && <button className="secondaryButton" onClick={onCompletePriority}><CheckCircle2 size={17} /> MARK PRIORITY COMPLETE</button>}<button onClick={onComplete}>COMPLETE SESSION <ArrowRight size={17} /></button></div></div>
 }
 
 function Reflection({ onSave }: { onSave: (accomplished: string, remember: string, tomorrow: string) => void }) {
