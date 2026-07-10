@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { Decision } from './localData'
+﻿import { useState } from 'react'
+import { Decision } from '../../localData'
 
 type StatusFilter = 'all' | 'open' | 'decided'
 type SortOrder = 'newest' | 'oldest'
@@ -29,7 +29,7 @@ export default function DecisionHistory({ decisions }: { decisions: Decision[] }
         <input
           className="searchInput"
           type="search"
-          placeholder="Search decisions…"
+          placeholder="Search decisionsâ€¦"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           aria-label="Search decisions"
@@ -61,3 +61,4 @@ export default function DecisionHistory({ decisions }: { decisions: Decision[] }
     </div>
   )
 }
+

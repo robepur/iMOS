@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { Commitment } from './localData'
+﻿import { useState } from 'react'
+import { Commitment } from '../../localData'
 
 type StatusFilter = 'all' | 'open' | 'complete'
 type SortOrder = 'newest' | 'oldest' | 'due'
@@ -29,7 +29,7 @@ export default function CommitmentHistory({ commitments }: { commitments: Commit
         <input
           className="searchInput"
           type="search"
-          placeholder="Search commitments…"
+          placeholder="Search commitmentsâ€¦"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           aria-label="Search commitments"
@@ -62,3 +62,4 @@ export default function CommitmentHistory({ commitments }: { commitments: Commit
     </div>
   )
 }
+

@@ -1,4 +1,4 @@
-import { FormEvent, useMemo, useState } from 'react'
+﻿import { FormEvent, useMemo, useState } from 'react'
 import {
   ArrowDown,
   ArrowUp,
@@ -10,7 +10,7 @@ import {
   Trash2,
   X,
 } from 'lucide-react'
-import { createId, Priority, PriorityLevel } from './localData'
+import { createId, Priority, PriorityLevel } from '../../localData'
 
 type Filter = 'active' | 'completed'
 
@@ -192,7 +192,7 @@ export default function PriorityConsole({ priorities, onChange, onClose }: Props
                 )}
                 {p.due && (
                   <span className={`priorityDue${isOverdue(p) ? ' priorityDueOverdue' : ''}`} aria-label={`Due: ${p.due}`}>
-                    {isOverdue(p) ? '⚠ OVERDUE ' : 'DUE '}{formatDate(p.due)}
+                    {isOverdue(p) ? 'âš  OVERDUE ' : 'DUE '}{formatDate(p.due)}
                   </span>
                 )}
               </div>
@@ -233,7 +233,7 @@ export default function PriorityConsole({ priorities, onChange, onClose }: Props
                   aria-label="Edit priority"
                   title="Edit"
                 >
-                  <span className="srOnly">Edit</span>✎
+                  <span className="srOnly">Edit</span>âœŽ
                 </button>
                 {!p.completed ? (
                   <button
@@ -393,7 +393,7 @@ function PriorityEditor({
               />
               SET AS PRIMARY PRIORITY
               {hasPrimary && !draft.primary && (
-                <span className="priorityEditorNote"> — will replace the current primary</span>
+                <span className="priorityEditorNote"> â€” will replace the current primary</span>
               )}
             </label>
           )}
@@ -409,3 +409,4 @@ function PriorityEditor({
     </div>
   )
 }
+

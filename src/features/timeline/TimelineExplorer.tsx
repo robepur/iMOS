@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { TimelineEntry } from './localData'
+﻿import { useState } from 'react'
+import { TimelineEntry } from '../../localData'
 
 type SortOrder = 'newest' | 'oldest'
 type EntryType = TimelineEntry['type'] | 'all'
@@ -44,7 +44,7 @@ export default function TimelineExplorer({ timeline }: { timeline: TimelineEntry
         <input
           className="searchInput"
           type="search"
-          placeholder="Search timeline…"
+          placeholder="Search timelineâ€¦"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           aria-label="Search timeline"
@@ -76,3 +76,4 @@ export default function TimelineExplorer({ timeline }: { timeline: TimelineEntry
     </div>
   )
 }
+

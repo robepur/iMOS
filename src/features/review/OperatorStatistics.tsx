@@ -1,4 +1,4 @@
-import { PersonalData } from './localData'
+﻿import { PersonalData } from '../../localData'
 
 export default function OperatorStatistics({ data }: { data: PersonalData }) {
   const totalPriorities = data.priorities.length
@@ -42,3 +42,4 @@ export default function OperatorStatistics({ data }: { data: PersonalData }) {
     </div>
   )
 }
+

@@ -1,5 +1,5 @@
-import { Sparkles } from 'lucide-react'
-import { getRosieMemory, PersonalData } from './localData'
+﻿import { Sparkles } from 'lucide-react'
+import { getRosieMemory, PersonalData } from '../../localData'
 
 type Props = {
   data: PersonalData
@@ -32,3 +32,5 @@ export default function RosieMemory({ data }: Props) {
 function formatDate(iso: string): string {
   return new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).format(new Date(iso))
 }
+
+

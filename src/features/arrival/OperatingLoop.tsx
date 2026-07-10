@@ -1,7 +1,7 @@
-import { useState } from 'react'
+﻿import { useState } from 'react'
 import { ArrowRight, CheckCircle2, Focus, ListChecks, Plus } from 'lucide-react'
-import { PersonalData, Priority, TimelineEntry } from './localData'
-import RosieMemory from './RosieMemory'
+import { PersonalData, Priority, TimelineEntry } from '../../localData'
+import RosieMemory from '../rosie/RosieMemory'
 
 export function Arrival({ date, data, primary, onBegin }: {
   date: string
@@ -17,7 +17,7 @@ export function Arrival({ date, data, primary, onBegin }: {
       <h2>{greeting}, Rob.</h2>
       <p className="lead">Your private operating context is unlocked and ready.</p>
       <div className="rosie">
-        <span className="rosieIcon">★</span>
+        <span className="rosieIcon">â˜…</span>
         <div>
           <strong>ROSIE</strong>
           <p>{primary ? `I recommend beginning with ${primary.title}. ${primary.why}` : 'No primary priority is set. Open the Priority Console to select your next mission.'}</p>
@@ -175,3 +175,5 @@ export function TimelineItem({ entry }: { entry: TimelineEntry }) {
     </div>
   )
 }
+
+

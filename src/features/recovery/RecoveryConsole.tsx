@@ -1,6 +1,6 @@
-import { useState } from 'react'
+﻿import { useState } from 'react'
 import { FileCheck2, FlaskConical, KeyRound, ShieldCheck, Upload, X } from 'lucide-react'
-import { getRecoveryAudit, restoreBackup, rotatePassphrase, testRecovery, verifyBackupPackage } from './vault'
+import { getRecoveryAudit, restoreBackup, rotatePassphrase, testRecovery, verifyBackupPackage } from '../../vault'
 
 type RecoveryAction = 'verify' | 'test' | 'restore' | 'rotate' | null
 type RecoveryStatus = { tone: 'success' | 'error' | 'neutral'; title: string; detail: string }
@@ -151,3 +151,5 @@ export default function RecoveryConsole({ onClose, onRestore, onRotate }: {
     </section>
   )
 }
+
+

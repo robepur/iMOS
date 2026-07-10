@@ -1,4 +1,4 @@
-import { FormEvent, useState } from 'react'
+﻿import { FormEvent, useState } from 'react'
 import { KeyRound, Lock, LockKeyhole } from 'lucide-react'
 
 export default function VaultGate({ state, error, onCreate, onUnlock }: {
@@ -69,3 +69,4 @@ export default function VaultGate({ state, error, onCreate, onUnlock }: {
     </main>
   )
 }
+

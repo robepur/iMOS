@@ -1,5 +1,5 @@
-import { Trash2, X } from 'lucide-react'
-import type { Reflection } from './localData'
+﻿import { Trash2, X } from 'lucide-react'
+import type { Reflection } from '../../localData'
 
 type Props = {
   reflections: Reflection[]
@@ -80,3 +80,4 @@ export default function ReflectionHistory({ reflections, onDelete, onClose }: Pr
     </section>
   )
 }
+

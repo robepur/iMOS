@@ -1,6 +1,6 @@
-import { FormEvent, useMemo, useState } from 'react'
+﻿import { FormEvent, useMemo, useState } from 'react'
 import { Clipboard, Eye, EyeOff, KeyRound, Plus, Search, Star, Trash2, X } from 'lucide-react'
-import type { SecretRecord } from './localData'
+import type { SecretRecord } from '../../localData'
 
 const CLIPBOARD_CLEAR_MS = 30_000
 
@@ -75,7 +75,7 @@ export default function SecretsConsole({ records, onChange, onClose }: Props) {
       {filtered.map((record) => <article className="secretCard" key={record.id}>
         <div className="secretCardHeader"><div><span>{record.category || 'Uncategorized'}</span><h3>{record.title}</h3></div><button className="iconButton" aria-label="Toggle favorite" onClick={() => onChange(records.map((item) => item.id === record.id ? { ...item, favorite: !item.favorite, updatedAt: new Date().toISOString() } : item), 'Secret updated', record.title)}><Star size={17} fill={record.favorite ? 'currentColor' : 'none'} /></button></div>
         {record.username && <div className="secretField"><span>USERNAME</span><strong>{record.username}</strong><button className="iconButton" onClick={() => void copy(record, record.username, 'Username')}><Clipboard size={16} /></button></div>}
-        {record.password && <div className="secretField"><span>PASSWORD</span><strong>{revealed === record.id ? record.password : '••••••••••••'}</strong><div><button className="iconButton" onClick={() => reveal(record)}>{revealed === record.id ? <EyeOff size={16} /> : <Eye size={16} />}</button><button className="iconButton" onClick={() => void copy(record, record.password, 'Password')}><Clipboard size={16} /></button></div></div>}
+        {record.password && <div className="secretField"><span>PASSWORD</span><strong>{revealed === record.id ? record.password : 'â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢'}</strong><div><button className="iconButton" onClick={() => reveal(record)}>{revealed === record.id ? <EyeOff size={16} /> : <Eye size={16} />}</button><button className="iconButton" onClick={() => void copy(record, record.password, 'Password')}><Clipboard size={16} /></button></div></div>}
         {record.url && <p className="secretMeta">{record.url}</p>}
         {record.notes && <p className="secretNotes">{record.notes}</p>}
         <div className="secretCardActions"><button className="secondaryButton" onClick={() => setEditing(record)}>EDIT</button><button className="dangerButton" onClick={() => remove(record)}><Trash2 size={15} /> DELETE</button></div>
@@ -111,3 +111,4 @@ function SecretEditor({ record, onCancel, onSave }: { record: SecretRecord; onCa
     <div className="captureActions"><button type="submit">SAVE ENCRYPTED RECORD</button><button type="button" className="secondaryButton" onClick={onCancel}>CANCEL</button></div>
   </form></div>
 }
+

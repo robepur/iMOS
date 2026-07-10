@@ -1,10 +1,10 @@
-import { useState } from 'react'
+﻿import { useState } from 'react'
 import { X } from 'lucide-react'
-import { inPeriod, PersonalData, ReviewPeriod, getRosieMemory } from './localData'
-import ReflectionHistory from './ReflectionHistory'
+import { inPeriod, PersonalData, ReviewPeriod, getRosieMemory } from '../../localData'
+import ReflectionHistory from '../reflection/ReflectionHistory'
 import CommitmentHistory from './CommitmentHistory'
 import DecisionHistory from './DecisionHistory'
-import TimelineExplorer from './TimelineExplorer'
+import TimelineExplorer from '../timeline/TimelineExplorer'
 import OperatorStatistics from './OperatorStatistics'
 
 type ReviewTab = 'dashboard' | 'timeline' | 'commitments' | 'decisions' | 'reflections' | 'statistics'
@@ -184,3 +184,5 @@ export default function ReviewCenter({ data, onDeleteReflection, onClose }: {
     </section>
   )
 }
+
+
