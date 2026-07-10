@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useState } from 'react'
-import type { Commitment, Decision, PersonalData, Priority, RosieRecommendation, SecretRecord, TimelineEntry } from '../localData'
+import type { Commitment, Decision, PersonalData, Priority, RosieRecommendation, SecretRecord, TimelineEntry, UnderstandingState } from '../localData'
 import { createId, createInitialData, normalizePersonalData } from '../localData'
 import { VaultService } from '../services/VaultService'
 import { StorageService } from '../services/StorageService'
-import { buildDismissed, buildSnoozed } from './useRecommendations'
+import { buildCompleted, buildDismissed, buildSnoozed } from './useRecommendations'
 
 export type VaultState = 'setup' | 'locked' | 'unlocked'
 
@@ -32,6 +32,8 @@ export type UseVaultReturn = {
   rotateVaultPassphrase: (current: string, replacement: string) => Promise<void>
   dismissRecommendation: (rec: RosieRecommendation) => void
   snoozeRecommendation: (rec: RosieRecommendation, days: number) => void
+  completeRecommendation: (rec: RosieRecommendation) => void
+  syncUnderstandingState: (nextState: UnderstandingState, events: Array<Omit<TimelineEntry, 'id' | 'createdAt'>>) => void
 }
 
 export function useVault(): UseVaultReturn {
@@ -200,7 +202,17 @@ export function useVault(): UseVaultReturn {
     setData((prev) => {
       if (!prev) return prev
       const existing = (prev.recommendations ?? []).filter((r) => r.id !== rec.id)
-      return { ...prev, recommendations: [...existing, buildDismissed(rec)] }
+      return {
+        ...prev,
+        recommendations: [...existing, buildDismissed(rec)],
+        timeline: [{
+          id: createId('timeline'),
+          type: 'system',
+          title: 'Pattern dismissed',
+          detail: `Recommendation dismissed: ${rec.title}`,
+          createdAt: new Date().toISOString(),
+        }, ...prev.timeline],
+      }
     })
   }, [])
 
@@ -208,7 +220,53 @@ export function useVault(): UseVaultReturn {
     setData((prev) => {
       if (!prev) return prev
       const existing = (prev.recommendations ?? []).filter((r) => r.id !== rec.id)
-      return { ...prev, recommendations: [...existing, buildSnoozed(rec, days)] }
+      return {
+        ...prev,
+        recommendations: [...existing, buildSnoozed(rec, days)],
+        timeline: [{
+          id: createId('timeline'),
+          type: 'system',
+          title: 'Pattern snoozed',
+          detail: `Recommendation snoozed for ${days} day${days !== 1 ? 's' : ''}: ${rec.title}`,
+          createdAt: new Date().toISOString(),
+        }, ...prev.timeline],
+      }
+    })
+  }, [])
+
+  const completeRecommendation = useCallback((rec: RosieRecommendation) => {
+    setData((prev) => {
+      if (!prev) return prev
+      const existing = (prev.recommendations ?? []).filter((r) => r.id !== rec.id)
+      return {
+        ...prev,
+        recommendations: [...existing, buildCompleted(rec)],
+        timeline: [{
+          id: createId('timeline'),
+          type: 'system',
+          title: 'Recommendation completed',
+          detail: rec.title,
+          createdAt: new Date().toISOString(),
+        }, ...prev.timeline],
+      }
+    })
+  }, [])
+
+  const syncUnderstandingState = useCallback((nextState: UnderstandingState, events: Array<Omit<TimelineEntry, 'id' | 'createdAt'>>) => {
+    setData((prev) => {
+      if (!prev) return prev
+      const current = prev.understandingState ?? { activeDriftSignals: [], activePatternKeys: [], trendDirections: {} }
+      const unchanged = JSON.stringify(current) === JSON.stringify(nextState)
+      const uniqueEvents = events.filter((event) => !prev.timeline.some(
+        (entry) => entry.type === event.type && entry.title === event.title && entry.detail === event.detail
+      ))
+      if (unchanged && uniqueEvents.length === 0) return prev
+      const stamped = uniqueEvents.map((event) => ({ ...event, id: createId('timeline'), createdAt: new Date().toISOString() }))
+      return {
+        ...prev,
+        understandingState: nextState,
+        timeline: [...stamped, ...prev.timeline],
+      }
     })
   }, [])
 
@@ -219,6 +277,7 @@ export function useVault(): UseVaultReturn {
     addCommitment, addDecision, toggleCommitment, toggleDecision,
     completePrimaryPriority, saveReflection, deleteReflection,
     restoreVault, rotateVaultPassphrase,
-    dismissRecommendation, snoozeRecommendation,
+    dismissRecommendation, snoozeRecommendation, completeRecommendation,
+    syncUnderstandingState,
   }
 }

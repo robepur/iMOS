@@ -91,6 +91,14 @@ export default function UnderstandingDashboard({ understanding, onClose }: Props
             <div className="ud-meta">
               <span>Generated {new Date(understanding.generatedAt).toLocaleTimeString()}</span>
             </div>
+            <div className="ud-card">
+              <p className="eyebrow">RECOMMENDATION OUTCOMES</p>
+              <div className="ud-stat-row"><span>Completed</span><strong>{statistics.recommendationOutcomes.completed}</strong></div>
+              <div className="ud-stat-row"><span>Dismissed</span><strong>{statistics.recommendationOutcomes.dismissed}</strong></div>
+              <div className="ud-stat-row"><span>Snoozed</span><strong>{statistics.recommendationOutcomes.snoozed}</strong></div>
+              <div className="ud-stat-row"><span>Ignored</span><strong>{statistics.recommendationOutcomes.ignored}</strong></div>
+              <div className="ud-stat-row"><span>Active</span><strong>{statistics.recommendationOutcomes.active}</strong></div>
+            </div>
           </div>
         )}
 
@@ -277,6 +285,10 @@ export default function UnderstandingDashboard({ understanding, onClose }: Props
                 <StatRow label="Average priority lifetime" value={statistics.avgPriorityLifetimeDays !== null ? `${statistics.avgPriorityLifetimeDays} days` : '—'} />
                 <StatRow label="Average commitment lifetime" value={statistics.avgCommitmentLifetimeDays !== null ? `${statistics.avgCommitmentLifetimeDays} days` : '—'} />
                 <StatRow label="Recommendation resolution rate" value={`${statistics.recommendationCompletionRate}%`} />
+                <StatRow label="Recommendations completed" value={statistics.recommendationOutcomes.completed} />
+                <StatRow label="Recommendations dismissed" value={statistics.recommendationOutcomes.dismissed} />
+                <StatRow label="Recommendations snoozed" value={statistics.recommendationOutcomes.snoozed} />
+                <StatRow label="Recommendations ignored" value={statistics.recommendationOutcomes.ignored} />
               </tbody>
             </table>
           </div>

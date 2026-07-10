@@ -15,6 +15,7 @@ import type {
   Reflection, TimelineEntry, SecretRecord, RosieRecommendation,
 } from '../localData'
 import { createId } from '../localData'
+import { UnderstandingEngine } from './UnderstandingEngine'
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
@@ -88,6 +89,10 @@ function secretNode(s: SecretRecord): GraphNode {
 
 function recommendationNode(r: RosieRecommendation): GraphNode {
   return { id: r.id, type: 'recommendation', title: r.title, createdAt: r.createdAt }
+}
+
+function understandingNode(id: string, title: string, createdAt: string): GraphNode {
+  return { id, type: 'understanding', title, createdAt }
 }
 
 // ── Edge discovery rules ───────────────────────────────────────────────────────
@@ -292,6 +297,60 @@ export const KnowledgeGraph = {
    */
   build(data: PersonalData): KnowledgeGraphData {
     const now = new Date().toISOString()
+    const understanding = UnderstandingEngine.analyze(data)
+    const understandingNodes: GraphNode[] = []
+    const understandingEdges: GraphEdge[] = []
+
+    for (const signal of understanding.drift.signals) {
+      if (signal.severity === 'info') continue
+      const nodeId = `understanding-drift-${signal.id}`
+      understandingNodes.push(understandingNode(nodeId, `Drift: ${signal.title}`, now))
+      const signalText = `${signal.title} ${signal.description} ${signal.evidence.join(' ')}`.toLowerCase()
+      const matchedPriorities = data.priorities.filter((x) => !x.completed && keywordOverlap(keywords(x.title), signalText) > 0).slice(0, 3)
+      for (const p of matchedPriorities) {
+        understandingEdges.push(mkEdge(nodeId, p.id, 'observed_in', [
+          signal.description,
+          signal.evidence[0] ?? 'Detected from operator records.',
+        ], now))
+      }
+    }
+
+    for (const metric of Object.values(understanding.trends)) {
+      if (metric.direction === 'stable') continue
+      const nodeId = `understanding-trend-${metric.dimension.toLowerCase().replace(/\s+/g, '-')}`
+      understandingNodes.push(understandingNode(nodeId, `Trend: ${metric.dimension} ${metric.direction}`, now))
+      if (metric.dimension.includes('Priority')) {
+        data.priorities
+          .filter((p) => keywordOverlap(keywords(metric.dimension), p.title) > 0)
+          .slice(0, 2)
+          .forEach((p) => understandingEdges.push(mkEdge(nodeId, p.id, 'derived_from', [metric.evidence[0]], now)))
+      } else if (metric.dimension.includes('Commitment')) {
+        data.commitments
+          .filter((c) => keywordOverlap(keywords(metric.dimension), c.title) > 0)
+          .slice(0, 2)
+          .forEach((c) => understandingEdges.push(mkEdge(nodeId, c.id, 'derived_from', [metric.evidence[0]], now)))
+      } else if (metric.dimension.includes('Decision')) {
+        data.decisions
+          .filter((d) => keywordOverlap(keywords(metric.dimension), d.title) > 0)
+          .slice(0, 2)
+          .forEach((d) => understandingEdges.push(mkEdge(nodeId, d.id, 'derived_from', [metric.evidence[0]], now)))
+      } else {
+        data.reflections.slice(0, 2).forEach((r) => understandingEdges.push(mkEdge(nodeId, r.id, 'derived_from', [metric.evidence[0]], now)))
+      }
+    }
+
+    const outcome = understanding.statistics.recommendationOutcomes
+    if (outcome.total > 0) {
+      const nodeId = 'understanding-recommendation-outcomes'
+      understandingNodes.push(understandingNode(nodeId, `Recommendation outcomes: ${outcome.completed} completed, ${outcome.dismissed} dismissed`, now))
+      data.recommendations?.slice(0, 5).forEach((r) => {
+        understandingEdges.push(mkEdge(nodeId, r.id, 'observed_in', [
+          `Outcome metrics derived from recommendation records.`,
+          `Completed ${outcome.completed}, dismissed ${outcome.dismissed}, snoozed ${outcome.snoozed}, ignored ${outcome.ignored}.`,
+        ], now))
+      })
+    }
+
     const nodes: GraphNode[] = [
       ...data.priorities.map(priorityNode),
       ...data.commitments.map(commitmentNode),
@@ -300,8 +359,9 @@ export const KnowledgeGraph = {
       ...data.timeline.map(timelineNode),
       ...(data.secrets ?? []).map(secretNode),
       ...(data.recommendations ?? []).map(recommendationNode),
+      ...understandingNodes,
     ]
-    const edges = discoverEdges(data, now)
+    const edges = [...discoverEdges(data, now), ...understandingEdges]
     return { nodes, edges, builtAt: now }
   },
 

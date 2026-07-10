@@ -17,11 +17,12 @@ function SeverityIcon({ severity }: { severity: RosieRecommendation['severity'] 
 
 type RecCardProps = {
   rec: RosieRecommendation
+  onComplete: (rec: RosieRecommendation) => void
   onDismiss: (rec: RosieRecommendation) => void
   onSnooze: (rec: RosieRecommendation, days: number) => void
 }
 
-function RecCard({ rec, onDismiss, onSnooze }: RecCardProps) {
+function RecCard({ rec, onComplete, onDismiss, onSnooze }: RecCardProps) {
   const [expanded, setExpanded] = useState(false)
   const [showSnooze, setShowSnooze] = useState(false)
 
@@ -55,6 +56,7 @@ function RecCard({ rec, onDismiss, onSnooze }: RecCardProps) {
         </div>
       )}
       <div className="rec-actions">
+        <button className="rec-complete-btn" onClick={() => onComplete(rec)}>Mark complete</button>
         <button className="rec-dismiss-btn" onClick={() => onDismiss(rec)}>Dismiss</button>
         <div className="rec-snooze-wrapper">
           <button className="rec-snooze-btn" onClick={() => setShowSnooze((v) => !v)}>Snooze ▾</button>
@@ -79,12 +81,13 @@ type Props = {
   recs: RosieRecommendation[]
   patterns: string[]
   healthSignals: HealthSignals | null
+  onComplete: (rec: RosieRecommendation) => void
   onDismiss: (rec: RosieRecommendation) => void
   onSnooze: (rec: RosieRecommendation, days: number) => void
   onClose: () => void
 }
 
-export default function RecommendationCenter({ recs, patterns, healthSignals, onDismiss, onSnooze, onClose }: Props) {
+export default function RecommendationCenter({ recs, patterns, healthSignals, onComplete, onDismiss, onSnooze, onClose }: Props) {
   return (
     <section className="rosie-center panel" aria-label="Rosie Recommendation Center">
       <div className="panelHeader">
@@ -117,7 +120,7 @@ export default function RecommendationCenter({ recs, patterns, healthSignals, on
       ) : (
         <div className="rec-list" aria-label="Active recommendations">
           {recs.map((rec) => (
-            <RecCard key={rec.id} rec={rec} onDismiss={onDismiss} onSnooze={onSnooze} />
+            <RecCard key={rec.id} rec={rec} onComplete={onComplete} onDismiss={onDismiss} onSnooze={onSnooze} />
           ))}
         </div>
       )}

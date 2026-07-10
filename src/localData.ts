@@ -10,11 +10,15 @@ export type RosieRecommendation = {
   createdAt: string
   dismissed: boolean
   snoozedUntil?: string
+  dismissedAt?: string
+  snoozedAt?: string
+  completed?: boolean
+  completedAt?: string
 }
 
 export type NodeType =
   | 'priority' | 'commitment' | 'decision' | 'reflection'
-  | 'timeline' | 'secret' | 'recommendation' | 'recovery' | 'memory'
+  | 'timeline' | 'secret' | 'recommendation' | 'recovery' | 'memory' | 'understanding'
 
 export type EdgeType =
   | 'related_to' | 'created_from' | 'references' | 'supports'
@@ -125,6 +129,13 @@ export type PersonalData = {
   secrets?: SecretRecord[]
   recommendations?: RosieRecommendation[]
   knowledgeGraph?: KnowledgeGraphData
+  understandingState?: UnderstandingState
+}
+
+export type UnderstandingState = {
+  activeDriftSignals: string[]
+  activePatternKeys: string[]
+  trendDirections: Record<string, 'increasing' | 'stable' | 'decreasing'>
 }
 
 const VALID_LEVELS: PriorityLevel[] = ['critical', 'high', 'normal', 'low']
@@ -149,7 +160,17 @@ export function normalizePersonalData(raw: PersonalData): PersonalData {
     ...(p['completedAt'] ? { completedAt: String(p['completedAt']) } : {}),
   }))
 
-  return { ...raw, secrets: raw.secrets ?? [], priorities, recommendations: raw.recommendations ?? [] }
+  return {
+    ...raw,
+    secrets: raw.secrets ?? [],
+    priorities,
+    recommendations: raw.recommendations ?? [],
+    understandingState: raw.understandingState ?? {
+      activeDriftSignals: [],
+      activePatternKeys: [],
+      trendDirections: {},
+    },
+  }
 }
 
 export function getRosieMemory(data: PersonalData, period?: ReviewPeriod): RosieMemoryItem[] {
@@ -213,6 +234,11 @@ export function createInitialData(): PersonalData {
       }
     ],
     recommendations: [],
+    understandingState: {
+      activeDriftSignals: [],
+      activePatternKeys: [],
+      trendDirections: {},
+    },
   }
 }
 

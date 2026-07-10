@@ -1,4 +1,4 @@
-import { lazy, Suspense, useMemo, useState } from 'react'
+import { lazy, Suspense, useEffect, useMemo, useState } from 'react'
 import { BrainCircuit, Clock3, KeyRound, ListChecks, Lock, LockKeyhole, Network, ShieldCheck, Zap } from 'lucide-react'
 import { useVault } from './hooks/useVault'
 import { usePriorities } from './hooks/usePriorities'
@@ -7,6 +7,7 @@ import { useRecommendations } from './hooks/useRecommendations'
 import { useKnowledgeGraph } from './hooks/useKnowledgeGraph'
 import { useUnderstanding } from './hooks/useUnderstanding'
 import { RosieEngine } from './services/RosieEngine'
+import { UnderstandingEngine } from './services/UnderstandingEngine'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import VaultGate from './features/vault/VaultGate'
 import DataPanel from './features/vault/DataPanel'
@@ -50,9 +51,49 @@ export default function App() {
 
   const { data } = vault
   const healthSignals = RosieEngine.getHealthSignals(data)
+  const eveningSummary = RosieEngine.getEveningSummary(data)
   const openCommitments = data.commitments.filter((c) => c.status === 'open').length
   const graphStats = getStats()
   const driftCritical = understanding?.drift.hasCritical ?? false
+  const morningObservations = understanding ? UnderstandingEngine.getMorningObservations(understanding) : []
+  const eveningObservations = understanding ? UnderstandingEngine.getEveningObservations(understanding) : []
+
+  useEffect(() => {
+    if (!understanding || !vault.data) return
+    const nextState = {
+      activeDriftSignals: understanding.drift.signals.map((s) => s.id),
+      activePatternKeys: UnderstandingEngine.derivePatternKeys(understanding.patterns),
+      trendDirections: {
+        priorityLoad: understanding.trends.priorityLoad.direction,
+        commitmentLoad: understanding.trends.commitmentLoad.direction,
+        decisionLoad: understanding.trends.decisionLoad.direction,
+        reflectionFrequency: understanding.trends.reflectionFrequency.direction,
+        recommendationVolume: understanding.trends.recommendationVolume.direction,
+        completionRate: understanding.trends.completionRate.direction,
+      },
+    }
+
+    const previous = vault.data.understandingState ?? { activeDriftSignals: [], activePatternKeys: [], trendDirections: {} }
+    const events: Array<{ type: 'system'; title: string; detail: string }> = []
+
+    const newDrift = nextState.activeDriftSignals.filter((id) => !previous.activeDriftSignals.includes(id))
+    const resolvedDrift = previous.activeDriftSignals.filter((id) => !nextState.activeDriftSignals.includes(id))
+    newDrift.forEach((id) => events.push({ type: 'system', title: 'Operational drift detected', detail: id }))
+    resolvedDrift.forEach((id) => events.push({ type: 'system', title: 'Pattern resolved', detail: `Drift resolved: ${id}` }))
+
+    const newPatterns = nextState.activePatternKeys.filter((id) => !previous.activePatternKeys.includes(id))
+    const resolvedPatterns = previous.activePatternKeys.filter((id) => !nextState.activePatternKeys.includes(id))
+    newPatterns.forEach((key) => events.push({ type: 'system', title: 'Pattern detected', detail: key }))
+    resolvedPatterns.forEach((key) => events.push({ type: 'system', title: 'Pattern resolved', detail: key }))
+
+    Object.entries(nextState.trendDirections).forEach(([dimension, direction]) => {
+      if (previous.trendDirections[dimension] !== direction) {
+        events.push({ type: 'system', title: 'Trend detected', detail: `${dimension}:${direction}` })
+      }
+    })
+
+    vault.syncUnderstandingState(nextState, events)
+  }, [understanding, vault])
 
   const stateItems = [
     ['Executive State', mode === 'focus' ? 'Focused' : 'Aware'],
@@ -93,7 +134,7 @@ export default function App() {
           {showRecovery && <RecoveryConsole onClose={() => setShowRecovery(false)} onRestore={vault.restoreVault} onRotate={vault.rotateVaultPassphrase} />}
           {showReflections && <ReflectionHistory reflections={data.reflections} onDelete={vault.deleteReflection} onClose={() => setShowReflections(false)} />}
           {showReview && <ReviewCenter data={data} onDeleteReflection={vault.deleteReflection} onClose={() => setShowReview(false)} />}
-          {showRosie && <RecommendationCenter recs={recs} patterns={patterns} healthSignals={healthSignals} onDismiss={vault.dismissRecommendation} onSnooze={vault.snoozeRecommendation} onClose={() => setShowRosie(false)} />}
+          {showRosie && <RecommendationCenter recs={recs} patterns={patterns} healthSignals={healthSignals} onComplete={vault.completeRecommendation} onDismiss={vault.dismissRecommendation} onSnooze={vault.snoozeRecommendation} onClose={() => setShowRosie(false)} />}
           {showKnowledge && <KnowledgeGraphViewer graph={graph} onClose={() => setShowKnowledge(false)} />}
           {showUnderstanding && understanding && <UnderstandingDashboard understanding={understanding} onClose={() => setShowUnderstanding(false)} />}
         </Suspense>
@@ -104,9 +145,9 @@ export default function App() {
       <section className="workspace">
         <div className="primary panel">
           {mode === 'arrival' && <Arrival date={date} data={data} primary={primary} onBegin={() => setMode('brief')} />}
-          {mode === 'brief' && <Brief data={data} overdueCount={overdueCount} criticalCount={criticalCount} secretCount={secrets.count} onAddCommitment={vault.addCommitment} onAddDecision={vault.addDecision} onToggleCommitment={vault.toggleCommitment} onToggleDecision={vault.toggleDecision} onOpenPriorities={() => setShowPriorities(true)} onOpenReflectionHistory={() => setShowReflections(true)} onBegin={() => setMode('focus')} />}
+          {mode === 'brief' && <Brief data={data} overdueCount={overdueCount} criticalCount={criticalCount} secretCount={secrets.count} morningObservations={morningObservations} onAddCommitment={vault.addCommitment} onAddDecision={vault.addDecision} onToggleCommitment={vault.toggleCommitment} onToggleDecision={vault.toggleDecision} onOpenPriorities={() => setShowPriorities(true)} onOpenReflectionHistory={() => setShowReflections(true)} onBegin={() => setMode('focus')} />}
           {mode === 'focus' && <FocusView primary={primary} onCompletePriority={() => primary && vault.completePrimaryPriority(primary)} onComplete={() => setMode('reflection')} />}
-          {mode === 'reflection' && <Reflection onSave={(a, r, t) => { vault.saveReflection(a, r, t); setMode('arrival') }} />}
+          {mode === 'reflection' && <Reflection eveningSummary={eveningSummary} eveningObservations={eveningObservations} onSave={(a, r, t) => { vault.saveReflection(a, r, t); setMode('arrival') }} />}
         </div>
         <aside className="timeline panel">
           <div className="panelTitle"><Clock3 size={17} /><span>EXECUTIVE TIMELINE</span></div>

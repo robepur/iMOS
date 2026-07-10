@@ -1,6 +1,8 @@
 ﻿import { useState } from 'react'
 import { ArrowRight, CheckCircle2, Focus, ListChecks, Plus } from 'lucide-react'
 import { PersonalData, Priority, TimelineEntry } from '../../localData'
+import type { EveningSummaryData } from '../../services/RosieEngine'
+import type { UnderstandingObservation } from '../../services/UnderstandingEngine'
 import RosieMemory from '../rosie/RosieMemory'
 
 export function Arrival({ date, data, primary, onBegin }: {
@@ -29,7 +31,7 @@ export function Arrival({ date, data, primary, onBegin }: {
   )
 }
 
-export function Brief({ data, overdueCount, criticalCount, secretCount, onAddCommitment, onAddDecision, onToggleCommitment, onToggleDecision, onOpenPriorities, onOpenReflectionHistory, onBegin }: {
+export function Brief({ data, overdueCount, criticalCount, secretCount, onAddCommitment, onAddDecision, onToggleCommitment, onToggleDecision, onOpenPriorities, onOpenReflectionHistory, onBegin, morningObservations = [] }: {
   data: PersonalData
   overdueCount: number
   criticalCount: number
@@ -41,12 +43,15 @@ export function Brief({ data, overdueCount, criticalCount, secretCount, onAddCom
   onOpenPriorities: () => void
   onOpenReflectionHistory: () => void
   onBegin: () => void
+  morningObservations?: UnderstandingObservation[]
 }) {
   const [capture, setCapture] = useState<'commitment' | 'decision' | null>(null)
   const openCommitments = data.commitments.filter((item) => item.status === 'open')
   const openDecisions = data.decisions.filter((item) => item.status === 'open')
   const activePriorities = data.priorities.filter((p) => !p.completed)
   const primary = activePriorities.find((p) => p.primary) ?? activePriorities[0]
+
+  const observations = morningObservations
 
   return (
     <div>
@@ -63,6 +68,18 @@ export function Brief({ data, overdueCount, criticalCount, secretCount, onAddCom
         <span>{openDecisions.length} open decision{openDecisions.length !== 1 ? 's' : ''}</span>
         <span>{activePriorities.length} active priorit{activePriorities.length !== 1 ? 'ies' : 'y'}</span>
       </div>
+      {observations.length > 0 && (
+        <section className="dashSection" aria-label="Rosie understanding observations">
+          <p className="eyebrow">UNDERSTANDING OBSERVATIONS</p>
+          {observations.map((obs, index) => (
+            <div key={index} className="memoryItem">
+              <p><strong>{obs.noticed}</strong> — {obs.why}</p>
+              <span className="memoryDate">{obs.evidence}</span>
+              {obs.action && <p className="dashRecent">Action: {obs.action}</p>}
+            </div>
+          ))}
+        </section>
+      )}
       <div className="recordGrid">
         <RecordList title="OPEN COMMITMENTS" items={openCommitments.map((item) => ({ id: item.id, title: item.title, meta: item.due || 'No due date' }))} onToggle={onToggleCommitment} />
         <RecordList title="OPEN DECISIONS" items={openDecisions.map((item) => ({ id: item.id, title: item.title, meta: item.context || 'No context added' }))} onToggle={onToggleDecision} />
@@ -105,7 +122,15 @@ export function FocusView({ primary, onCompletePriority, onComplete }: {
   )
 }
 
-export function Reflection({ onSave }: { onSave: (accomplished: string, remember: string, tomorrow: string) => void }) {
+export function Reflection({
+  onSave,
+  eveningSummary,
+  eveningObservations = [],
+}: {
+  onSave: (accomplished: string, remember: string, tomorrow: string) => void
+  eveningSummary?: EveningSummaryData
+  eveningObservations?: UnderstandingObservation[]
+}) {
   const [accomplished, setAccomplished] = useState('')
   const [remember, setRemember] = useState('')
   const [tomorrow, setTomorrow] = useState('')
@@ -113,6 +138,28 @@ export function Reflection({ onSave }: { onSave: (accomplished: string, remember
     <div>
       <p className="eyebrow">EXECUTIVE REFLECTION</p>
       <h2>Close the loop.</h2>
+      {eveningSummary && (
+        <section className="dashSection" aria-label="Evening operational summary">
+          <p className="eyebrow">EVENING SUMMARY</p>
+          <div className="briefMeta">
+            <span>{eveningSummary.completedPriorities.length} priorities completed</span>
+            <span>{eveningSummary.completedCommitments.length} commitments completed</span>
+            <span>{eveningSummary.decisionsMade.length} decisions made</span>
+          </div>
+        </section>
+      )}
+      {eveningObservations.length > 0 && (
+        <section className="dashSection" aria-label="Understanding evening observations">
+          <p className="eyebrow">UNDERSTANDING OBSERVATIONS</p>
+          {eveningObservations.map((obs, index) => (
+            <div key={index} className="memoryItem">
+              <p><strong>{obs.noticed}</strong> — {obs.why}</p>
+              <span className="memoryDate">{obs.evidence}</span>
+              {obs.action && <p className="dashRecent">Action: {obs.action}</p>}
+            </div>
+          ))}
+        </section>
+      )}
       <form className="reflectionForm" onSubmit={(e) => { e.preventDefault(); onSave(accomplished.trim(), remember.trim(), tomorrow.trim()) }}>
         <label>WHAT DID WE ACCOMPLISH?<textarea value={accomplished} onChange={(e) => setAccomplished(e.target.value)} /></label>
         <label>WHAT SHOULD ROSIE REMEMBER?<textarea value={remember} onChange={(e) => setRemember(e.target.value)} /></label>
@@ -175,5 +222,3 @@ export function TimelineItem({ entry }: { entry: TimelineEntry }) {
     </div>
   )
 }
-
-

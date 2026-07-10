@@ -7,7 +7,7 @@ import { Search } from 'lucide-react'
 const NODE_TYPE_LABELS: Record<GraphNode['type'], string> = {
   priority: 'Priority', commitment: 'Commitment', decision: 'Decision',
   reflection: 'Reflection', timeline: 'Timeline', secret: 'Secret',
-  recommendation: 'Recommendation', recovery: 'Recovery', memory: 'Memory',
+  recommendation: 'Recommendation', recovery: 'Recovery', memory: 'Memory', understanding: 'Understanding',
 }
 
 type Props = {

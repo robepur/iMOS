@@ -37,6 +37,7 @@ function daysAgo(days: number): Date {
 function isActive(id: string, stored: RosieRecommendation[]): boolean {
   const match = stored.find((s) => s.id === id)
   if (!match) return true
+  if (match.completed) return false
   if (match.dismissed) return false
   if (match.snoozedUntil && new Date(match.snoozedUntil) > new Date()) return false
   return true

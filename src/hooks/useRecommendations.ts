@@ -35,11 +35,32 @@ export function useRecommendations(data: PersonalData | null): UseRecommendation
 
 /** Build a dismissed recommendation record to persist in data.recommendations */
 export function buildDismissed(original: RosieRecommendation): RosieRecommendation {
-  return { ...original, dismissed: true }
+  return {
+    ...original,
+    dismissed: true,
+    dismissedAt: new Date().toISOString(),
+    completed: false,
+  }
 }
 
 /** Build a snoozed recommendation record with future date */
 export function buildSnoozed(original: RosieRecommendation, days: number): RosieRecommendation {
   const until = new Date(Date.now() + days * 86_400_000).toISOString()
-  return { ...original, snoozedUntil: until, dismissed: false }
+  return {
+    ...original,
+    snoozedUntil: until,
+    snoozedAt: new Date().toISOString(),
+    dismissed: false,
+    completed: false,
+  }
+}
+
+/** Build a completed recommendation record */
+export function buildCompleted(original: RosieRecommendation): RosieRecommendation {
+  return {
+    ...original,
+    dismissed: false,
+    completed: true,
+    completedAt: new Date().toISOString(),
+  }
 }
