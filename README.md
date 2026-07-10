@@ -10,15 +10,17 @@ iMOS helps the operator stay ahead of reality through trusted observation, disci
 
 ## Current build
 
-Build 003 establishes an encrypted local operating loop:
+Build 012A completes Phase Two foundation and intelligence hardening:
 
-1. Create or unlock the Personal Vault
-2. Receive the Rosie executive brief
-3. Capture commitments and decisions
-4. Enter a protected focus session
-5. Complete an executive reflection
-6. Re encrypt changes automatically
-7. Lock the vault when finished
+1. Encrypted Personal Vault with backup, verification, restore, and passphrase rotation
+2. Secure Secrets management inside the encrypted local vault
+3. Priority Command and Rosie Memory operating loop
+4. Review Center, timeline, commitments, decisions, and operator statistics
+5. Modular core architecture with migration and validation coverage
+6. Rosie recommendations, Knowledge Graph, and deterministic Understanding Engine
+7. Deterministic Mission Planning with lifecycle integrity, transactional updates, and regression coverage
+
+See `docs/builds/BUILD_012A.md` for Phase Two finalization details.
 
 ## Vault security
 
@@ -45,8 +47,8 @@ The passphrase is never stored and cannot be recovered by iMOS. Losing the passp
 ## Local development
 
 ```bash
-npm install
-npm run dev
+pnpm install
+pnpm run dev
 ```
 
 ## Security
