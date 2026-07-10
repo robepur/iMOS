@@ -128,18 +128,19 @@ textarea { min-height: 90px; resize: vertical; }
   .primary { min-height: auto; padding: 28px; }
   .timeline { order: 2; }
   .dataPanel { align-items: flex-start; flex-direction: column; }
-  .recoveryGrid, .secretsToolbar { grid-template-columns: 1fr; }
-  .secretGrid { grid-template-columns: 1fr; }
+  .recoveryGrid, .secretsToolbar, .priorityToolbar { grid-template-columns: 1fr; }
+  .secretGrid, .priorityList { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 650px) {
   .topbar { align-items: flex-start; flex-direction: column; }
   .topActions { width: 100%; }
   .utilityButton { padding: 10px 12px; flex: 1; }
-  .statebar, .cards, .focusGrid, .recordGrid, .captureForm, .rotationGrid, .recoveryActions { grid-template-columns: 1fr; }
+  .statebar, .cards, .focusGrid, .recordGrid, .captureForm, .rotationGrid, .recoveryActions, .priorityEditorGrid { grid-template-columns: 1fr; }
   .captureForm .captureActions { grid-column: auto; }
   .recoveryAudit > div { grid-template-columns: 1fr; }
   .recoveryHeader { align-items: flex-start; }
+  .priorityEditorFull { grid-column: auto; }
 }
 
 @media (max-width: 560px) {
@@ -150,7 +151,211 @@ textarea { min-height: 90px; resize: vertical; }
   .lead { font-size: 16px; }
   .dataActions, .captureActions { width: 100%; }
   .dataActions button, .captureActions button { flex: 1; }
-  .recoveryConsole, .secretsConsole, .secretEditor { padding: 18px; }
+  .recoveryConsole, .secretsConsole, .secretEditor, .priorityConsole, .reflectionHistory, .priorityEditor { padding: 18px; }
   .secretField { grid-template-columns: 1fr auto; }
   .secretField > span { grid-column: 1 / -1; }
+  .priorityRowActions { flex-wrap: wrap; }
 }
+
+/* ── Priority Console ── */
+
+.priorityConsole { margin: 18px 0; padding: 26px; }
+
+.priorityToolbar {
+  display: grid;
+  grid-template-columns: minmax(240px, 1fr) auto auto;
+  gap: 10px;
+  margin-top: 22px;
+  align-items: center;
+}
+
+.priorityFilterGroup { display: flex; gap: 6px; }
+
+.priorityFilterActive {
+  background: #680f0e;
+  border-color: #8f2c2a;
+}
+
+.priorityEmptyState { margin-top: 32px; }
+
+.priorityList { display: flex; flex-direction: column; gap: 10px; margin-top: 22px; }
+
+.priorityRow {
+  padding: 18px 20px;
+  border: 1px solid rgba(255,255,255,.1);
+  background: rgba(0,0,0,.12);
+}
+
+.priorityRowPrimary {
+  border-color: rgba(197,162,83,.4);
+  background: rgba(197,162,83,.04);
+}
+
+.priorityRowCritical {
+  border-left: 3px solid #d94444;
+}
+
+.priorityRowTop {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.priorityRowMeta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+
+.priorityRowActions { display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
+
+.priorityLevel {
+  font-size: 9px;
+  letter-spacing: .14em;
+  padding: 3px 7px;
+  border: 1px solid rgba(255,255,255,.18);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.priorityLevel-critical { color: #e07070; border-color: rgba(208,68,68,.5); background: rgba(208,68,68,.1); }
+.priorityLevel-high     { color: #e09a50; border-color: rgba(208,130,50,.4); background: rgba(208,130,50,.07); }
+.priorityLevel-normal   { color: #8fa5b9; }
+.priorityLevel-low      { color: #607080; }
+
+.priorityPrimaryBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: #c5a253;
+  font-size: 9px;
+  letter-spacing: .14em;
+  font-weight: 600;
+}
+
+.priorityPrimaryButton { color: #c5a253; }
+
+.priorityDue { font-size: 10px; color: #8fa5b9; letter-spacing: .08em; white-space: nowrap; }
+.priorityDueOverdue { color: #e07070; }
+
+.priorityTitle { margin: 10px 0 0; font-size: 16px; line-height: 1.3; overflow-wrap: anywhere; }
+.priorityWhy { margin: 6px 0 0; color: #8396a8; font-size: 13px; line-height: 1.5; overflow-wrap: anywhere; }
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0,0,0,0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Priority Editor */
+.priorityEditor { width: min(680px, 100%); max-height: calc(100vh - 40px); overflow: auto; padding: 26px; }
+
+.priorityEditorGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  margin: 18px 0;
+}
+
+.priorityEditorFull { grid-column: 1 / -1; }
+
+.priorityEditorCheckbox {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  font-size: 11px;
+  letter-spacing: .12em;
+}
+
+.priorityEditorCheckbox input[type="checkbox"] {
+  width: auto;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  accent-color: #c5a253;
+}
+
+.priorityEditorNote { color: #8fa5b9; font-style: normal; }
+
+/* Brief meta row */
+.briefMeta {
+  display: flex;
+  gap: 20px;
+  flex-wrap: wrap;
+  margin: -10px 0 16px;
+  font-size: 12px;
+  color: #8fa5b9;
+  letter-spacing: .08em;
+}
+
+/* ── Rosie Memory ── */
+
+.rosieMemory {
+  margin: 24px 0 20px;
+  border-left: 3px solid rgba(197,162,83,.35);
+  padding-left: 18px;
+}
+
+.rosieMemoryHeader {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #c5a253;
+  font-size: 10px;
+  letter-spacing: .18em;
+  margin-bottom: 14px;
+}
+
+.rosieMemoryItem {
+  margin-bottom: 14px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid rgba(255,255,255,.06);
+}
+
+.rosieMemoryItem:last-child { border-bottom: none; margin-bottom: 0; padding-bottom: 0; }
+
+.rosieMemoryText { margin: 0 0 6px; font-size: 14px; line-height: 1.5; color: #d7dee6; overflow-wrap: anywhere; }
+
+.rosieMemoryMeta {
+  display: flex;
+  gap: 12px;
+  font-size: 10px;
+  letter-spacing: .1em;
+  color: #8fa5b9;
+  margin-bottom: 4px;
+}
+
+.rosieMemoryDisclaimer { margin: 0; font-size: 11px; color: #5a6e7f; font-style: italic; }
+
+/* ── Reflection History ── */
+
+.reflectionHistory { margin: 18px 0; padding: 26px; }
+
+.reflectionHistoryList { display: flex; flex-direction: column; gap: 0; margin-top: 22px; }
+
+.reflectionEntry {
+  padding: 22px 0;
+  border-top: 1px solid rgba(255,255,255,.09);
+}
+
+.reflectionEntryHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.reflectionEntryDate { font-size: 13px; color: #c5a253; letter-spacing: .06em; }
+
+.reflectionField { margin-bottom: 10px; }
+.reflectionFieldLabel { display: block; font-size: 10px; letter-spacing: .14em; color: #8fa5b9; margin-bottom: 5px; }
+.reflectionField p { margin: 0; color: #d7dee6; line-height: 1.6; font-size: 14px; overflow-wrap: anywhere; }
+.reflectionFieldMemory .reflectionFieldLabel { color: #c5a253; }
+
