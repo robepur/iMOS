@@ -13,6 +13,11 @@ export type {
   Reflection,
   SecretRecord,
   PersonalData,
+  NodeType,
+  EdgeType,
+  GraphNode,
+  GraphEdge,
+  KnowledgeGraphData,
 } from '../localData'
 
 export type {

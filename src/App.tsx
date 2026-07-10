@@ -1,9 +1,10 @@
 import { lazy, Suspense, useMemo, useState } from 'react'
-import { Clock3, KeyRound, ListChecks, Lock, LockKeyhole, ShieldCheck, Zap } from 'lucide-react'
+import { Clock3, KeyRound, ListChecks, Lock, LockKeyhole, Network, ShieldCheck, Zap } from 'lucide-react'
 import { useVault } from './hooks/useVault'
 import { usePriorities } from './hooks/usePriorities'
 import { useSecrets } from './hooks/useSecrets'
 import { useRecommendations } from './hooks/useRecommendations'
+import { useKnowledgeGraph } from './hooks/useKnowledgeGraph'
 import { RosieEngine } from './services/RosieEngine'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import VaultGate from './features/vault/VaultGate'
@@ -16,6 +17,7 @@ const RecoveryConsole       = lazy(() => import('./features/recovery/RecoveryCon
 const SecretsConsole        = lazy(() => import('./features/secrets/SecretsConsole'))
 const ReflectionHistory     = lazy(() => import('./features/reflection/ReflectionHistory'))
 const RecommendationCenter  = lazy(() => import('./features/rosie/RecommendationCenter'))
+const KnowledgeGraphViewer  = lazy(() => import('./features/knowledge/KnowledgeGraphViewer'))
 
 type Mode = 'arrival' | 'brief' | 'focus' | 'reflection'
 
@@ -24,15 +26,17 @@ export default function App() {
   const { activePriorities, primary, criticalCount, overdueCount } = usePriorities(vault.data)
   const secrets = useSecrets(vault.data)
   const { active: recs, patterns, criticalCount: recCritical } = useRecommendations(vault.data)
+  const { graph, getStats } = useKnowledgeGraph(vault.data)
 
   const [mode, setMode] = useState<Mode>('arrival')
-  const [showDataPanel, setShowDataPanel]     = useState(false)
-  const [showRecovery, setShowRecovery]       = useState(false)
-  const [showSecrets, setShowSecrets]         = useState(false)
-  const [showPriorities, setShowPriorities]   = useState(false)
-  const [showReflections, setShowReflections] = useState(false)
-  const [showReview, setShowReview]           = useState(false)
-  const [showRosie, setShowRosie]             = useState(false)
+  const [showDataPanel, setShowDataPanel]       = useState(false)
+  const [showRecovery, setShowRecovery]         = useState(false)
+  const [showSecrets, setShowSecrets]           = useState(false)
+  const [showPriorities, setShowPriorities]     = useState(false)
+  const [showReflections, setShowReflections]   = useState(false)
+  const [showReview, setShowReview]             = useState(false)
+  const [showRosie, setShowRosie]               = useState(false)
+  const [showKnowledge, setShowKnowledge]       = useState(false)
 
   const date = useMemo(() => new Intl.DateTimeFormat('en-US', { weekday: 'long', month: 'long', day: 'numeric' }).format(new Date()), [])
 
@@ -43,6 +47,7 @@ export default function App() {
   const { data } = vault
   const healthSignals = RosieEngine.getHealthSignals(data)
   const openCommitments = data.commitments.filter((c) => c.status === 'open').length
+  const graphStats = getStats()
 
   const stateItems = [
     ['Executive State', mode === 'focus' ? 'Focused' : 'Aware'],
@@ -50,6 +55,7 @@ export default function App() {
     ['Priorities', criticalCount ? `${criticalCount} Critical` : activePriorities.length ? `${activePriorities.length} Active` : 'Clear'],
     ['Commitments', openCommitments ? `${openCommitments} Open` : 'On Track'],
     ['Rosie', recCritical > 0 ? `${recCritical} Critical` : recs.length > 0 ? `${recs.length} Recs` : 'Clear'],
+    ['Graph', graphStats.totalEdges > 0 ? `${graphStats.totalEdges} Links` : 'Building'],
   ]
 
   return (
@@ -61,6 +67,7 @@ export default function App() {
           <button className={`utilityButton${recs.length > 0 ? ' utilityButton--alert' : ''}`} onClick={() => setShowRosie(true)}>
             <Zap size={16} /> ROSIE{recs.length > 0 ? ` (${recs.length})` : ''}
           </button>
+          <button className="utilityButton" onClick={() => setShowKnowledge(true)}><Network size={16} /> KNOWLEDGE</button>
           <button className="utilityButton" onClick={() => setShowPriorities(true)}><ListChecks size={16} /> PRIORITIES</button>
           <button className="utilityButton" onClick={() => setShowSecrets(true)}><KeyRound size={16} /> SECRETS</button>
           <button className="utilityButton" onClick={() => setShowDataPanel((v) => !v)}><LockKeyhole size={16} /> VAULT</button>
@@ -79,6 +86,7 @@ export default function App() {
           {showReflections && <ReflectionHistory reflections={data.reflections} onDelete={vault.deleteReflection} onClose={() => setShowReflections(false)} />}
           {showReview && <ReviewCenter data={data} onDeleteReflection={vault.deleteReflection} onClose={() => setShowReview(false)} />}
           {showRosie && <RecommendationCenter recs={recs} patterns={patterns} healthSignals={healthSignals} onDismiss={vault.dismissRecommendation} onSnooze={vault.snoozeRecommendation} onClose={() => setShowRosie(false)} />}
+          {showKnowledge && <KnowledgeGraphViewer graph={graph} onClose={() => setShowKnowledge(false)} />}
         </Suspense>
       </ErrorBoundary>
 

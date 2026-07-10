@@ -12,6 +12,38 @@ export type RosieRecommendation = {
   snoozedUntil?: string
 }
 
+export type NodeType =
+  | 'priority' | 'commitment' | 'decision' | 'reflection'
+  | 'timeline' | 'secret' | 'recommendation' | 'recovery' | 'memory'
+
+export type EdgeType =
+  | 'related_to' | 'created_from' | 'references' | 'supports'
+  | 'depends_on' | 'completed_by' | 'mentioned_in' | 'derived_from'
+  | 'observed_in' | 'remembered_by'
+
+export type GraphNode = {
+  id: string
+  type: NodeType
+  title: string
+  createdAt: string
+}
+
+export type GraphEdge = {
+  id: string
+  source: string
+  target: string
+  type: EdgeType
+  evidence: string[]
+  createdAt: string
+  confidence: 'high' | 'medium' | 'low'
+}
+
+export type KnowledgeGraphData = {
+  nodes: GraphNode[]
+  edges: GraphEdge[]
+  builtAt: string
+}
+
 export type PriorityLevel = 'critical' | 'high' | 'normal' | 'low'
 
 export type ReviewPeriod = 'today' | 'week' | 'month' | 'quarter' | 'all'
@@ -92,6 +124,7 @@ export type PersonalData = {
   reflections: Reflection[]
   secrets?: SecretRecord[]
   recommendations?: RosieRecommendation[]
+  knowledgeGraph?: KnowledgeGraphData
 }
 
 const VALID_LEVELS: PriorityLevel[] = ['critical', 'high', 'normal', 'low']
