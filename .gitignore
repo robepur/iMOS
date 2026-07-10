@@ -9,3 +9,5 @@ Thumbs.db
 *.log
 coverage/
 *.tsbuildinfo
+vite.config.js
+vite.config.d.ts

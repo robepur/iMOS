@@ -47,20 +47,6 @@ export default function App() {
 
   const date = useMemo(() => new Intl.DateTimeFormat('en-US', { weekday: 'long', month: 'long', day: 'numeric' }).format(new Date()), [])
 
-  if (vault.vaultState !== 'unlocked' || !vault.data) {
-    return <VaultGate state={vault.vaultState as 'setup' | 'locked'} error={vault.error} onCreate={vault.createVault} onUnlock={vault.unlock} />
-  }
-
-  const { data } = vault
-  const healthSignals = RosieEngine.getHealthSignals(data)
-  const morningBrief = RosieEngine.getMorningBrief(data)
-  const eveningSummary = RosieEngine.getEveningSummary(data)
-  const openCommitments = data.commitments.filter((c) => c.status === 'open').length
-  const graphStats = getStats()
-  const driftCritical = understanding?.drift.hasCritical ?? false
-  const morningObservations = understanding ? UnderstandingEngine.getMorningObservations(understanding) : []
-  const eveningObservations = understanding ? UnderstandingEngine.getEveningObservations(understanding) : []
-
   useEffect(() => {
     if (!understanding || !vault.data) return
     const nextState = {
@@ -97,6 +83,20 @@ export default function App() {
 
     vault.syncUnderstandingState(nextState, events)
   }, [understanding, vault])
+
+  if (vault.vaultState !== 'unlocked' || !vault.data) {
+    return <VaultGate state={vault.vaultState as 'setup' | 'locked'} error={vault.error} onCreate={vault.createVault} onUnlock={vault.unlock} />
+  }
+
+  const { data } = vault
+  const healthSignals = RosieEngine.getHealthSignals(data)
+  const morningBrief = RosieEngine.getMorningBrief(data)
+  const eveningSummary = RosieEngine.getEveningSummary(data)
+  const openCommitments = data.commitments.filter((c) => c.status === 'open').length
+  const graphStats = getStats()
+  const driftCritical = understanding?.drift.hasCritical ?? false
+  const morningObservations = understanding ? UnderstandingEngine.getMorningObservations(understanding) : []
+  const eveningObservations = understanding ? UnderstandingEngine.getEveningObservations(understanding) : []
 
   const stateItems = [
     ['Executive State', mode === 'focus' ? 'Focused' : 'Aware'],
