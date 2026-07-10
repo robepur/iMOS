@@ -45,4 +45,10 @@ export const TIMELINE_TYPE_LABELS: Record<string, string> = {
 
 export const APP_NAME = 'iMOS'
 export const APP_FULL_NAME = 'Individual Mission Operating System'
-export const BUILD = '008'
+export const BUILD = '012A'
+
+export const MISSION_LIMITS = {
+  MAX_STEPS: 24,
+  MIN_EVIDENCE_ITEMS: 1,
+  MAX_EVIDENCE_ITEMS: 6,
+} as const

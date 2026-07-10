@@ -1,5 +1,6 @@
 import type { MissionPlan, MissionStep, PersonalData, Priority } from '../localData'
 import { createId } from '../localData'
+import { MISSION_LIMITS } from '../constants'
 import { DependencyEngine } from './DependencyEngine'
 
 export type MissionProgress = {
@@ -32,6 +33,7 @@ export const MissionPlanningEngine = {
     const now = new Date().toISOString()
     const priorities = selectSourcePriorities(data)
     const sourcePriorityIds = priorities.map((p) => p.id)
+    const activePlans = (data.missionPlans ?? []).filter((plan) => plan.status === 'active')
 
     const steps: MissionStep[] = []
 
@@ -45,6 +47,8 @@ export const MissionPlanningEngine = {
         dependsOn: [],
         evidence: [`Open decision detected: ${d.title}`, `Created ${d.createdAt.slice(0, 10)}`],
         estimatedEffort: effortFromTitle(d.title),
+        generatedByRosie: true,
+        lastModifiedBy: 'rosie',
       })
     })
 
@@ -59,6 +63,8 @@ export const MissionPlanningEngine = {
         dependsOn: deps,
         evidence: [`Outstanding commitment: ${c.title}`, c.due ? `Due ${c.due}` : 'No due date set'],
         estimatedEffort: effortFromTitle(c.title),
+        generatedByRosie: true,
+        lastModifiedBy: 'rosie',
       })
     })
 
@@ -77,6 +83,8 @@ export const MissionPlanningEngine = {
           `Priority selected for mission planning`,
         ],
         estimatedEffort: p.level === 'critical' ? 'large' : 'medium',
+        generatedByRosie: true,
+        lastModifiedBy: 'rosie',
       })
     })
 
@@ -89,20 +97,41 @@ export const MissionPlanningEngine = {
       dependsOn: steps.filter((s) => s.title.startsWith('Execute priority')).map((s) => s.id),
       evidence: ['Reflection closes execution loop', 'Rosie memory quality depends on reflection cadence'],
       estimatedEffort: 'small',
+      generatedByRosie: true,
+      lastModifiedBy: 'rosie',
     })
 
-    const ordered = DependencyEngine.sortSteps(steps)
+    const uniqueSteps = steps
+      .filter((step, index, arr) => arr.findIndex((candidate) => candidate.title.toLowerCase() === step.title.toLowerCase()) === index)
+      .slice(0, MISSION_LIMITS.MAX_STEPS)
+      .map((step) => ({
+        ...step,
+        evidence: step.evidence.filter((value, idx, arr) => value.trim().length > 0 && arr.indexOf(value) === idx).slice(0, MISSION_LIMITS.MAX_EVIDENCE_ITEMS),
+      }))
+
+    const ordered = DependencyEngine.sortSteps(uniqueSteps)
+    const requestedObjective = objective?.trim()
+    const baseTitle = requestedObjective || (priorities[0] ? `Mission Plan: ${priorities[0].title}` : 'Mission Plan')
+    const duplicateTitleCount = (data.missionPlans ?? []).filter((plan) => plan.title.toLowerCase() === baseTitle.toLowerCase()).length
+    const title = duplicateTitleCount === 0 ? baseTitle : `${baseTitle} (${duplicateTitleCount + 1})`
+    const explanation = MissionPlanningEngine.explainPlan(ordered, priorities.map((p) => p.title))
+    const lowEvidence = ordered.some((step) => step.evidence.length < MISSION_LIMITS.MIN_EVIDENCE_ITEMS)
+    const hasActivePlanForSource = activePlans.some((plan) => plan.sourcePriorityIds.some((id) => sourcePriorityIds.includes(id)))
+
     const plan: MissionPlan = {
       id: createId('mission'),
-      title: objective ?? (priorities[0] ? `Mission Plan: ${priorities[0].title}` : 'Mission Plan'),
-      objective: objective ?? (priorities[0]?.why || 'Execute current operational priorities in dependency order.'),
+      title,
+      objective: requestedObjective || priorities[0]?.why || 'Execute current operational priorities in dependency order.',
       status: 'draft',
       createdAt: now,
       updatedAt: now,
       sourcePriorityIds,
       stepIds: ordered.map((s) => s.id),
-      explanation: MissionPlanningEngine.explainPlan(ordered, priorities.map((p) => p.title)),
+      explanation,
       approved: false,
+      generatedByRosie: true,
+      requiresOperatorReview: lowEvidence || hasActivePlanForSource,
+      lastModifiedBy: 'rosie',
     }
     return { plan, steps: ordered }
   },
@@ -136,4 +165,3 @@ export const MissionPlanningEngine = {
     return { completedSteps, remainingSteps, blockedSteps, completionPercent, activeStep }
   },
 }
-

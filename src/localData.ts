@@ -109,6 +109,9 @@ export type MissionPlan = {
   stepIds: string[]
   explanation: string
   approved: boolean
+  generatedByRosie?: boolean
+  requiresOperatorReview?: boolean
+  lastModifiedBy?: 'operator' | 'rosie'
 }
 
 export type MissionStep = {
@@ -121,6 +124,10 @@ export type MissionStep = {
   evidence: string[]
   estimatedEffort: 'small' | 'medium' | 'large'
   completedAt?: string
+  generatedByRosie?: boolean
+  operatorModified?: boolean
+  operatorOverrideReason?: string
+  lastModifiedBy?: 'operator' | 'rosie'
 }
 
 export type Reflection = {
@@ -188,13 +195,48 @@ export function normalizePersonalData(raw: PersonalData): PersonalData {
     ...(p['completedAt'] ? { completedAt: String(p['completedAt']) } : {}),
   }))
 
+  const missionPlans = (raw.missionPlans ?? []).map((plan): MissionPlan => ({
+    ...plan,
+    title: String(plan.title ?? ''),
+    objective: String(plan.objective ?? ''),
+    status: (['draft', 'approved', 'active', 'paused', 'completed', 'cancelled'] as const).includes(plan.status)
+      ? plan.status
+      : 'draft',
+    sourcePriorityIds: Array.isArray(plan.sourcePriorityIds) ? plan.sourcePriorityIds.map(String) : [],
+    stepIds: Array.isArray(plan.stepIds) ? plan.stepIds.map(String) : [],
+    explanation: String(plan.explanation ?? ''),
+    approved: Boolean(plan.approved),
+    createdAt: String(plan.createdAt ?? new Date().toISOString()),
+    updatedAt: String(plan.updatedAt ?? plan.createdAt ?? new Date().toISOString()),
+    ...(plan.generatedByRosie !== undefined ? { generatedByRosie: Boolean(plan.generatedByRosie) } : {}),
+    ...(plan.requiresOperatorReview !== undefined ? { requiresOperatorReview: Boolean(plan.requiresOperatorReview) } : {}),
+    ...(plan.lastModifiedBy === 'operator' || plan.lastModifiedBy === 'rosie' ? { lastModifiedBy: plan.lastModifiedBy } : {}),
+  }))
+
+  const missionSteps = (raw.missionSteps ?? []).map((step, index): MissionStep => ({
+    ...step,
+    id: String(step.id ?? createId('mission-step')),
+    title: String(step.title ?? ''),
+    description: String(step.description ?? ''),
+    order: typeof step.order === 'number' ? step.order : index + 1,
+    status: (['pending', 'active', 'completed', 'blocked'] as const).includes(step.status) ? step.status : 'pending',
+    dependsOn: Array.isArray(step.dependsOn) ? Array.from(new Set(step.dependsOn.map(String))) : [],
+    evidence: Array.isArray(step.evidence) ? step.evidence.map((item) => String(item)) : [],
+    estimatedEffort: (['small', 'medium', 'large'] as const).includes(step.estimatedEffort) ? step.estimatedEffort : 'medium',
+    ...(step.completedAt ? { completedAt: String(step.completedAt) } : {}),
+    ...(step.generatedByRosie !== undefined ? { generatedByRosie: Boolean(step.generatedByRosie) } : {}),
+    ...(step.operatorModified !== undefined ? { operatorModified: Boolean(step.operatorModified) } : {}),
+    ...(step.operatorOverrideReason ? { operatorOverrideReason: String(step.operatorOverrideReason) } : {}),
+    ...(step.lastModifiedBy === 'operator' || step.lastModifiedBy === 'rosie' ? { lastModifiedBy: step.lastModifiedBy } : {}),
+  }))
+
   return {
     ...raw,
     secrets: raw.secrets ?? [],
     priorities,
     recommendations: raw.recommendations ?? [],
-    missionPlans: raw.missionPlans ?? [],
-    missionSteps: raw.missionSteps ?? [],
+    missionPlans,
+    missionSteps,
     understandingState: raw.understandingState ?? {
       activeDriftSignals: [],
       activePatternKeys: [],

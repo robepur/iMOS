@@ -147,6 +147,10 @@ export default function App() {
               onSetMissionPlanStatus={vault.setMissionPlanStatus}
               onUpdateMissionPlan={vault.updateMissionPlan}
               onUpdateMissionStepStatus={vault.updateMissionStepStatus}
+              onUpdateMissionStep={vault.updateMissionStep}
+              onAddMissionStep={vault.addMissionStep}
+              onDeleteMissionStep={vault.deleteMissionStep}
+              onReorderMissionSteps={vault.reorderMissionSteps}
               onDeleteMissionPlan={vault.deleteMissionPlan}
             />
           )}

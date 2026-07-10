@@ -15,6 +15,7 @@ import { createId, createInitialData, normalizePersonalData } from '../localData
 import { VaultService } from '../services/VaultService'
 import { StorageService } from '../services/StorageService'
 import { buildCompleted, buildDismissed, buildSnoozed } from './useRecommendations'
+import { MissionIntegrityService } from '../services/MissionIntegrityService'
 
 export type VaultState = 'setup' | 'locked' | 'unlocked'
 
@@ -48,8 +49,31 @@ export type UseVaultReturn = {
   saveMissionPlan: (plan: MissionPlan, steps: MissionStep[]) => void
   setMissionPlanStatus: (planId: string, status: MissionPlan['status']) => void
   updateMissionPlan: (planId: string, patch: Partial<Pick<MissionPlan, 'title' | 'objective' | 'explanation'>>) => void
-  updateMissionStepStatus: (planId: string, stepId: string, status: MissionStep['status']) => void
+  updateMissionStepStatus: (planId: string, stepId: string, status: MissionStep['status'], reason?: string) => void
+  updateMissionStep: (planId: string, stepId: string, patch: Partial<Pick<MissionStep, 'title' | 'description' | 'estimatedEffort' | 'dependsOn'>>) => void
+  addMissionStep: (planId: string, title: string) => void
+  deleteMissionStep: (planId: string, stepId: string) => void
+  reorderMissionSteps: (planId: string, orderedStepIds: string[]) => void
   deleteMissionPlan: (planId: string) => void
+}
+
+function timelineSignature(entry: Omit<TimelineEntry, 'id' | 'createdAt'>): string {
+  return `${entry.type}|${entry.title}|${entry.detail}`
+}
+
+function prependUniqueTimeline(
+  timeline: TimelineEntry[],
+  entries: Array<Omit<TimelineEntry, 'id' | 'createdAt'>>
+): TimelineEntry[] {
+  const existing = new Set(timeline.map((entry) => timelineSignature(entry)))
+  const stamped: TimelineEntry[] = []
+  for (const entry of entries) {
+    const sig = timelineSignature(entry)
+    if (existing.has(sig)) continue
+    existing.add(sig)
+    stamped.push({ ...entry, id: createId('timeline'), createdAt: new Date().toISOString() })
+  }
+  return [...stamped, ...timeline]
 }
 
 export function useVault(): UseVaultReturn {
@@ -221,13 +245,11 @@ export function useVault(): UseVaultReturn {
       return {
         ...prev,
         recommendations: [...existing, buildDismissed(rec)],
-        timeline: [{
-          id: createId('timeline'),
+        timeline: prependUniqueTimeline(prev.timeline, [{
           type: 'system',
           title: 'Pattern dismissed',
           detail: `Recommendation dismissed: ${rec.title}`,
-          createdAt: new Date().toISOString(),
-        }, ...prev.timeline],
+        }]),
       }
     })
   }, [])
@@ -239,13 +261,11 @@ export function useVault(): UseVaultReturn {
       return {
         ...prev,
         recommendations: [...existing, buildSnoozed(rec, days)],
-        timeline: [{
-          id: createId('timeline'),
+        timeline: prependUniqueTimeline(prev.timeline, [{
           type: 'system',
           title: 'Pattern snoozed',
           detail: `Recommendation snoozed for ${days} day${days !== 1 ? 's' : ''}: ${rec.title}`,
-          createdAt: new Date().toISOString(),
-        }, ...prev.timeline],
+        }]),
       }
     })
   }, [])
@@ -257,13 +277,11 @@ export function useVault(): UseVaultReturn {
       return {
         ...prev,
         recommendations: [...existing, buildCompleted(rec)],
-        timeline: [{
-          id: createId('timeline'),
+        timeline: prependUniqueTimeline(prev.timeline, [{
           type: 'system',
           title: 'Recommendation completed',
           detail: rec.title,
-          createdAt: new Date().toISOString(),
-        }, ...prev.timeline],
+        }]),
       }
     })
   }, [])
@@ -277,11 +295,10 @@ export function useVault(): UseVaultReturn {
         (entry) => entry.type === event.type && entry.title === event.title && entry.detail === event.detail
       ))
       if (unchanged && uniqueEvents.length === 0) return prev
-      const stamped = uniqueEvents.map((event) => ({ ...event, id: createId('timeline'), createdAt: new Date().toISOString() }))
       return {
         ...prev,
         understandingState: nextState,
-        timeline: [...stamped, ...prev.timeline],
+        timeline: prependUniqueTimeline(prev.timeline, uniqueEvents),
       }
     })
   }, [])
@@ -289,20 +306,38 @@ export function useVault(): UseVaultReturn {
   const saveMissionPlan = useCallback((plan: MissionPlan, steps: MissionStep[]) => {
     setData((prev) => {
       if (!prev) return prev
+      const normalizedSteps = MissionIntegrityService.normalizeStepOrder(
+        steps.map((step) => ({
+          ...step,
+          generatedByRosie: step.generatedByRosie ?? true,
+          lastModifiedBy: step.lastModifiedBy ?? 'rosie',
+        }))
+      )
+      const nextPlan: MissionPlan = {
+        ...plan,
+        stepIds: normalizedSteps.map((step) => step.id),
+        updatedAt: new Date().toISOString(),
+        generatedByRosie: plan.generatedByRosie ?? true,
+        lastModifiedBy: plan.lastModifiedBy ?? 'rosie',
+      }
+      const issues = MissionIntegrityService.validatePlan(nextPlan, normalizedSteps)
+      if (issues.length > 0) {
+        setError(issues[0])
+        return prev
+      }
+
       const plans = prev.missionPlans ?? []
-      const existingPlans = plans.filter((p) => p.id !== plan.id)
-      const existingSteps = (prev.missionSteps ?? []).filter((s) => !plan.stepIds.includes(s.id))
+      const existingPlans = plans.filter((p) => p.id !== nextPlan.id)
+      const existingSteps = (prev.missionSteps ?? []).filter((s) => !nextPlan.stepIds.includes(s.id))
       return {
         ...prev,
-        missionPlans: [{ ...plan, updatedAt: new Date().toISOString() }, ...existingPlans],
-        missionSteps: [...steps, ...existingSteps],
-        timeline: [{
-          id: createId('timeline'),
+        missionPlans: [nextPlan, ...existingPlans],
+        missionSteps: [...normalizedSteps, ...existingSteps],
+        timeline: prependUniqueTimeline(prev.timeline, [{
           type: 'mission',
           title: 'Mission Created',
-          detail: plan.title,
-          createdAt: new Date().toISOString(),
-        }, ...prev.timeline],
+          detail: nextPlan.title,
+        }]),
       }
     })
   }, [])
@@ -320,16 +355,28 @@ export function useVault(): UseVaultReturn {
       }
       const mission = (prev.missionPlans ?? []).find((p) => p.id === planId)
       if (!mission) return prev
+      const steps = (prev.missionSteps ?? []).filter((step) => mission.stepIds.includes(step.id))
+      let nextMission: MissionPlan
+      try {
+        nextMission = MissionIntegrityService.transitionMission(mission, status, steps)
+      } catch (reason) {
+        setError(reason instanceof Error ? reason.message : 'Mission status transition failed.')
+        return prev
+      }
+      const issues = MissionIntegrityService.validatePlan(nextMission, MissionIntegrityService.normalizeStepOrder(steps))
+      if (issues.length > 0) {
+        setError(issues[0])
+        return prev
+      }
+
       return {
         ...prev,
-        missionPlans: (prev.missionPlans ?? []).map((p) => p.id === planId ? { ...p, status, approved: status === 'approved' || p.approved, updatedAt: new Date().toISOString() } : p),
-        timeline: [{
-          id: createId('timeline'),
+        missionPlans: (prev.missionPlans ?? []).map((p) => p.id === planId ? nextMission : p),
+        timeline: prependUniqueTimeline(prev.timeline, [{
           type: 'mission',
           title: titleByStatus[status],
           detail: mission.title,
-          createdAt: new Date().toISOString(),
-        }, ...prev.timeline],
+        }]),
       }
     })
   }, [])
@@ -337,43 +384,225 @@ export function useVault(): UseVaultReturn {
   const updateMissionPlan = useCallback((planId: string, patch: Partial<Pick<MissionPlan, 'title' | 'objective' | 'explanation'>>) => {
     setData((prev) => {
       if (!prev) return prev
+      const mission = (prev.missionPlans ?? []).find((p) => p.id === planId)
+      if (!mission) return prev
+      const steps = (prev.missionSteps ?? []).filter((step) => mission.stepIds.includes(step.id))
+      const nextMission: MissionPlan = {
+        ...mission,
+        ...patch,
+        lastModifiedBy: 'operator',
+        updatedAt: new Date().toISOString(),
+      }
+      const issues = MissionIntegrityService.validatePlan(nextMission, MissionIntegrityService.normalizeStepOrder(steps))
+      if (issues.length > 0) {
+        setError(issues[0])
+        return prev
+      }
       return {
         ...prev,
-        missionPlans: (prev.missionPlans ?? []).map((p) => p.id === planId ? { ...p, ...patch, updatedAt: new Date().toISOString() } : p),
+        missionPlans: (prev.missionPlans ?? []).map((p) => p.id === planId ? nextMission : p),
       }
     })
   }, [])
 
-  const updateMissionStepStatus = useCallback((planId: string, stepId: string, status: MissionStep['status']) => {
+  const updateMissionStepStatus = useCallback((planId: string, stepId: string, status: MissionStep['status'], reason?: string) => {
     setData((prev) => {
       if (!prev) return prev
       const mission = (prev.missionPlans ?? []).find((p) => p.id === planId)
       if (!mission) return prev
 
-      const missionSteps = (prev.missionSteps ?? []).map((step) => {
+      const missionStepIds = new Set(mission.stepIds)
+      const planSteps = (prev.missionSteps ?? []).filter((step) => missionStepIds.has(step.id))
+      const patchedPlanSteps = planSteps.map((step) => {
         if (step.id !== stepId) return step
-        return {
-          ...step,
-          status,
-          ...(status === 'completed' ? { completedAt: new Date().toISOString() } : {}),
+        try {
+          return MissionIntegrityService.transitionStep(step, status, planSteps, reason)
+        } catch (reason) {
+          setError(reason instanceof Error ? reason.message : 'Mission step transition failed.')
+          return step
         }
       })
-      const detailStep = missionSteps.find((s) => s.id === stepId)
-      const allCompleted = mission.stepIds.every((id) => missionSteps.find((s) => s.id === id)?.status === 'completed')
+      const normalizedPlanSteps = MissionIntegrityService.normalizeStepOrder(patchedPlanSteps)
+      const detailStep = normalizedPlanSteps.find((s) => s.id === stepId)
+      const allCompleted = mission.stepIds.every((id) => normalizedPlanSteps.find((s) => s.id === id)?.status === 'completed')
+      let nextMission = mission
+      if (allCompleted && mission.status === 'active') {
+        try {
+          nextMission = MissionIntegrityService.transitionMission(mission, 'completed', normalizedPlanSteps)
+        } catch (reason) {
+          setError(reason instanceof Error ? reason.message : 'Mission completion transition failed.')
+          return prev
+        }
+      }
+      const issues = MissionIntegrityService.validatePlan(nextMission, normalizedPlanSteps)
+      if (issues.length > 0) {
+        setError(issues[0])
+        return prev
+      }
+      const stepById = new Map(normalizedPlanSteps.map((step) => [step.id, step]))
+      const nextMissionSteps = (prev.missionSteps ?? []).map((step) => missionStepIds.has(step.id) ? (stepById.get(step.id) ?? step) : step)
 
       return {
         ...prev,
-        missionSteps,
-        missionPlans: (prev.missionPlans ?? []).map((p) => p.id === planId
-          ? { ...p, status: allCompleted ? 'completed' : p.status, updatedAt: new Date().toISOString() }
-          : p),
-        timeline: [{
-          id: createId('timeline'),
+        missionSteps: nextMissionSteps,
+        missionPlans: (prev.missionPlans ?? []).map((p) => p.id === planId ? nextMission : p),
+        timeline: prependUniqueTimeline(prev.timeline, [{
           type: 'mission',
-          title: status === 'completed' ? 'Step Completed' : 'Blocked Work',
+          title: status === 'completed' ? 'Step Completed' : status === 'blocked' ? 'Blocked Work' : 'Step Activated',
           detail: detailStep?.title ?? stepId,
-          createdAt: new Date().toISOString(),
-        }, ...prev.timeline],
+        }]),
+      }
+    })
+  }, [])
+
+  const updateMissionStep = useCallback((planId: string, stepId: string, patch: Partial<Pick<MissionStep, 'title' | 'description' | 'estimatedEffort' | 'dependsOn'>>) => {
+    setData((prev) => {
+      if (!prev) return prev
+      const mission = (prev.missionPlans ?? []).find((p) => p.id === planId)
+      if (!mission) return prev
+      const missionStepIds = new Set(mission.stepIds)
+      const planSteps = (prev.missionSteps ?? []).filter((step) => missionStepIds.has(step.id))
+      const patchedPlanSteps = MissionIntegrityService.normalizeStepOrder(planSteps.map((step) => (
+        step.id === stepId
+          ? MissionIntegrityService.patchStep(step, patch)
+          : step
+      )))
+      const issues = MissionIntegrityService.validatePlan(mission, patchedPlanSteps)
+      if (issues.length > 0) {
+        setError(issues[0])
+        return prev
+      }
+      const stepById = new Map(patchedPlanSteps.map((step) => [step.id, step]))
+      return {
+        ...prev,
+        missionSteps: (prev.missionSteps ?? []).map((step) => missionStepIds.has(step.id) ? (stepById.get(step.id) ?? step) : step),
+        timeline: prependUniqueTimeline(prev.timeline, [{
+          type: 'mission',
+          title: 'Step Updated',
+          detail: patchedPlanSteps.find((step) => step.id === stepId)?.title ?? stepId,
+        }]),
+      }
+    })
+  }, [])
+
+  const addMissionStep = useCallback((planId: string, title: string) => {
+    setData((prev) => {
+      if (!prev) return prev
+      const mission = (prev.missionPlans ?? []).find((p) => p.id === planId)
+      if (!mission) return prev
+      const stepTitle = title.trim()
+      if (!stepTitle) return prev
+      const missionStepIds = new Set(mission.stepIds)
+      const planSteps = (prev.missionSteps ?? []).filter((step) => missionStepIds.has(step.id))
+      const nextStep: MissionStep = {
+        id: createId('mission-step'),
+        title: stepTitle,
+        description: '',
+        order: planSteps.length + 1,
+        status: 'pending',
+        dependsOn: [],
+        evidence: ['Operator added mission step'],
+        estimatedEffort: 'medium',
+        operatorModified: true,
+        lastModifiedBy: 'operator',
+      }
+      const normalizedPlanSteps = MissionIntegrityService.normalizeStepOrder([...planSteps, nextStep])
+      const nextMission = {
+        ...mission,
+        stepIds: normalizedPlanSteps.map((step) => step.id),
+        updatedAt: new Date().toISOString(),
+        lastModifiedBy: 'operator' as const,
+      }
+      const issues = MissionIntegrityService.validatePlan(nextMission, normalizedPlanSteps)
+      if (issues.length > 0) {
+        setError(issues[0])
+        return prev
+      }
+      return {
+        ...prev,
+        missionPlans: (prev.missionPlans ?? []).map((plan) => plan.id === planId ? nextMission : plan),
+        missionSteps: [...normalizedPlanSteps, ...(prev.missionSteps ?? []).filter((step) => !missionStepIds.has(step.id))],
+        timeline: prependUniqueTimeline(prev.timeline, [{
+          type: 'mission',
+          title: 'Step Added',
+          detail: stepTitle,
+        }]),
+      }
+    })
+  }, [])
+
+  const deleteMissionStep = useCallback((planId: string, stepId: string) => {
+    setData((prev) => {
+      if (!prev) return prev
+      const mission = (prev.missionPlans ?? []).find((p) => p.id === planId)
+      if (!mission) return prev
+      const missionStepIds = new Set(mission.stepIds)
+      if (!missionStepIds.has(stepId)) return prev
+      const remainingPlanSteps = MissionIntegrityService.normalizeStepOrder(
+        (prev.missionSteps ?? [])
+          .filter((step) => missionStepIds.has(step.id) && step.id !== stepId)
+          .map((step) => ({ ...step, dependsOn: step.dependsOn.filter((dep) => dep !== stepId) }))
+      )
+      if (remainingPlanSteps.length === 0) {
+        setError('Mission cannot be empty. Delete the mission instead.')
+        return prev
+      }
+      const nextMission = {
+        ...mission,
+        stepIds: remainingPlanSteps.map((step) => step.id),
+        updatedAt: new Date().toISOString(),
+        lastModifiedBy: 'operator' as const,
+      }
+      const issues = MissionIntegrityService.validatePlan(nextMission, remainingPlanSteps)
+      if (issues.length > 0) {
+        setError(issues[0])
+        return prev
+      }
+      const keepSteps = (prev.missionSteps ?? []).filter((step) => !missionStepIds.has(step.id))
+      return {
+        ...prev,
+        missionPlans: (prev.missionPlans ?? []).map((plan) => plan.id === planId ? nextMission : plan),
+        missionSteps: [...remainingPlanSteps, ...keepSteps],
+        timeline: prependUniqueTimeline(prev.timeline, [{
+          type: 'mission',
+          title: 'Step Deleted',
+          detail: stepId,
+        }]),
+      }
+    })
+  }, [])
+
+  const reorderMissionSteps = useCallback((planId: string, orderedStepIds: string[]) => {
+    setData((prev) => {
+      if (!prev) return prev
+      const mission = (prev.missionPlans ?? []).find((p) => p.id === planId)
+      if (!mission) return prev
+      const missionStepIds = new Set(mission.stepIds)
+      const baseSteps = (prev.missionSteps ?? []).filter((step) => missionStepIds.has(step.id))
+      if (baseSteps.length !== orderedStepIds.length) return prev
+
+      const stepMap = new Map(baseSteps.map((step) => [step.id, step]))
+      const reordered = orderedStepIds.map((id, index) => {
+        const step = stepMap.get(id)
+        if (!step) return null
+        return { ...step, order: index + 1, operatorModified: true, lastModifiedBy: 'operator' as const }
+      })
+      if (reordered.some((step) => step === null)) return prev
+      const normalized = MissionIntegrityService.normalizeStepOrder(reordered as MissionStep[])
+      const issues = MissionIntegrityService.validatePlan(mission, normalized)
+      if (issues.length > 0) {
+        setError(issues[0])
+        return prev
+      }
+      const keepSteps = (prev.missionSteps ?? []).filter((step) => !missionStepIds.has(step.id))
+      return {
+        ...prev,
+        missionSteps: [...normalized, ...keepSteps],
+        timeline: prependUniqueTimeline(prev.timeline, [{
+          type: 'mission',
+          title: 'Step Reordered',
+          detail: mission.title,
+        }]),
       }
     })
   }, [])
@@ -387,13 +616,11 @@ export function useVault(): UseVaultReturn {
         ...prev,
         missionPlans: (prev.missionPlans ?? []).filter((p) => p.id !== planId),
         missionSteps: (prev.missionSteps ?? []).filter((s) => !mission.stepIds.includes(s.id)),
-        timeline: [{
-          id: createId('timeline'),
+        timeline: prependUniqueTimeline(prev.timeline, [{
           type: 'mission',
-          title: 'Mission Cancelled',
+          title: 'Mission Deleted',
           detail: mission.title,
-          createdAt: new Date().toISOString(),
-        }, ...prev.timeline],
+        }]),
       }
     })
   }, [])
@@ -407,6 +634,7 @@ export function useVault(): UseVaultReturn {
     restoreVault, rotateVaultPassphrase,
     dismissRecommendation, snoozeRecommendation, completeRecommendation,
     syncUnderstandingState,
-    saveMissionPlan, setMissionPlanStatus, updateMissionPlan, updateMissionStepStatus, deleteMissionPlan,
+    saveMissionPlan, setMissionPlanStatus, updateMissionPlan, updateMissionStepStatus, updateMissionStep,
+    addMissionStep, deleteMissionStep, reorderMissionSteps, deleteMissionPlan,
   }
 }

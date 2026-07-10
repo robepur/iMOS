@@ -14,7 +14,11 @@ type Props = {
   onSaveMissionPlan: (plan: MissionPlan, steps: MissionStep[]) => void
   onSetMissionPlanStatus: (planId: string, status: MissionPlan['status']) => void
   onUpdateMissionPlan: (planId: string, patch: Partial<Pick<MissionPlan, 'title' | 'objective' | 'explanation'>>) => void
-  onUpdateMissionStepStatus: (planId: string, stepId: string, status: MissionStep['status']) => void
+  onUpdateMissionStepStatus: (planId: string, stepId: string, status: MissionStep['status'], reason?: string) => void
+  onUpdateMissionStep: (planId: string, stepId: string, patch: Partial<Pick<MissionStep, 'title' | 'description' | 'estimatedEffort' | 'dependsOn'>>) => void
+  onAddMissionStep: (planId: string, title: string) => void
+  onDeleteMissionStep: (planId: string, stepId: string) => void
+  onReorderMissionSteps: (planId: string, orderedStepIds: string[]) => void
   onDeleteMissionPlan: (planId: string) => void
 }
 
@@ -27,10 +31,16 @@ export default function MissionPlanner({
   onSetMissionPlanStatus,
   onUpdateMissionPlan,
   onUpdateMissionStepStatus,
+  onUpdateMissionStep,
+  onAddMissionStep,
+  onDeleteMissionStep,
+  onReorderMissionSteps,
   onDeleteMissionPlan,
 }: Props) {
   const [tab, setTab] = useState<Tab>('planner')
   const [objective, setObjective] = useState('')
+  const [newStepTitle, setNewStepTitle] = useState('')
+  const [overrideReason, setOverrideReason] = useState('')
   const [selectedPlanId, setSelectedPlanId] = useState<string | null>(data.missionPlans?.[0]?.id ?? null)
 
   const plans = data.missionPlans ?? []
@@ -101,22 +111,78 @@ export default function MissionPlanner({
                   <button onClick={() => onSetMissionPlanStatus(selectedPlan.id, 'cancelled')}>Reject</button>
                   <button onClick={() => onDeleteMissionPlan(selectedPlan.id)}>Delete</button>
                 </div>
+                {selectedPlan.requiresOperatorReview && <p className="mission-evidence">Operator review required before activation.</p>}
               </section>
 
               <section className="mission-card mission-card--wide">
                 <p className="eyebrow">MISSION STEPS</p>
+                <div className="mission-actions">
+                  <input
+                    className="mission-input"
+                    value={newStepTitle}
+                    onChange={(event) => setNewStepTitle(event.target.value)}
+                    placeholder="Add operator step"
+                    aria-label="New mission step title"
+                  />
+                  <button
+                    onClick={() => {
+                      onAddMissionStep(selectedPlan.id, newStepTitle)
+                      setNewStepTitle('')
+                    }}
+                  >
+                    Add step
+                  </button>
+                </div>
+                <label className="mission-label">Override reason
+                  <input className="mission-input" value={overrideReason} onChange={(event) => setOverrideReason(event.target.value)} placeholder="Optional override reason" />
+                </label>
                 {selectedSteps.map((step) => (
                   <div key={step.id} className="mission-step-row">
                     <div>
                       <strong>{step.order}. {step.title}</strong>
-                      <p>{step.description}</p>
+                      <input
+                        className="mission-input"
+                        value={step.title}
+                        aria-label={`Step title ${step.order}`}
+                        onChange={(event) => onUpdateMissionStep(selectedPlan.id, step.id, { title: event.target.value })}
+                      />
+                      <textarea
+                        value={step.description}
+                        aria-label={`Step description ${step.order}`}
+                        onChange={(event) => onUpdateMissionStep(selectedPlan.id, step.id, { description: event.target.value })}
+                      />
+                      <label className="mission-label">Dependencies (comma-separated step IDs)
+                        <input
+                          className="mission-input"
+                          value={step.dependsOn.join(', ')}
+                          onChange={(event) => onUpdateMissionStep(
+                            selectedPlan.id,
+                            step.id,
+                            { dependsOn: event.target.value.split(',').map((item) => item.trim()).filter(Boolean) }
+                          )}
+                          aria-label={`Step dependencies ${step.order}`}
+                        />
+                      </label>
+                      <label className="mission-label">Estimated effort
+                        <select
+                          value={step.estimatedEffort}
+                          onChange={(event) => onUpdateMissionStep(selectedPlan.id, step.id, { estimatedEffort: event.target.value as MissionStep['estimatedEffort'] })}
+                          aria-label={`Step effort ${step.order}`}
+                        >
+                          <option value="small">Small</option>
+                          <option value="medium">Medium</option>
+                          <option value="large">Large</option>
+                        </select>
+                      </label>
                       <p className="mission-evidence">Effort: {step.estimatedEffort.toUpperCase()} · Depends on: {step.dependsOn.length}</p>
                       <ul>{step.evidence.map((e, i) => <li key={i}>{e}</li>)}</ul>
                     </div>
                     <div className="mission-step-actions">
-                      <button onClick={() => onUpdateMissionStepStatus(selectedPlan.id, step.id, 'active')}>Active</button>
-                      <button onClick={() => onUpdateMissionStepStatus(selectedPlan.id, step.id, 'blocked')}>Blocked</button>
-                      <button onClick={() => onUpdateMissionStepStatus(selectedPlan.id, step.id, 'completed')}>Complete</button>
+                      <button onClick={() => onReorderMissionSteps(selectedPlan.id, [step.id, ...selectedSteps.filter((s) => s.id !== step.id).map((s) => s.id)])}>Move first</button>
+                      <button onClick={() => onUpdateMissionStepStatus(selectedPlan.id, step.id, 'active', overrideReason.trim() || undefined)}>Active</button>
+                      <button onClick={() => onUpdateMissionStepStatus(selectedPlan.id, step.id, 'blocked', overrideReason.trim() || undefined)}>Blocked</button>
+                      <button onClick={() => onUpdateMissionStepStatus(selectedPlan.id, step.id, 'completed', overrideReason.trim() || undefined)}>Complete</button>
+                      <button onClick={() => onDeleteMissionStep(selectedPlan.id, step.id)}>Delete step</button>
                     </div>
                   </div>
                 ))}
@@ -135,4 +201,3 @@ export default function MissionPlanner({
     </section>
   )
 }
-
