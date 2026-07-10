@@ -4,9 +4,65 @@
 
 Ready for architecture review. No Phase 3 application code is authorized by this document.
 
+## Master Mission
+
+iMOS is a secure, multi-device personal operating system companion that helps the operator coordinate work, life, decisions, media, finances, information, and approved services through Rosie.
+
+Rosie is the trusted relationship and intelligence layer across the operator's authorized devices, applications, and information. iMOS must provide a unified experience without removing operator authority, weakening privacy, or creating hidden access.
+
+## Product Destination
+
+iMOS is intended to become a fully functional, all-in-one personal operating system available across desktop, laptop, phone, tablet, web browser, and future approved devices.
+
+The long-term experience may connect approved services including:
+
+- Microsoft 365 email, calendar, contacts, files, and Teams
+- music, playlists, audiobooks, and podcasts
+- financial accounts and portfolio information
+- news, research, travel, navigation, and personal communications
+- health, wellness, smart-device, and future approved services
+
+Every integration remains optional, isolated, permissioned, attributable, auditable, and revocable.
+
+## Core Architecture
+
+### Rosie Cognitive Core
+
+Learns how the operator prefers to think, review, decide, plan, and receive support. Cognitive processing must remain explainable, consent based, and under operator control.
+
+### Personal Data Vault
+
+Protects operator records, preferences, memories, corrections, permissions, and cognitive state using end-to-end encryption.
+
+### Cloud Vault and Sync Fabric
+
+Synchronizes encrypted vault state across authorized devices. Cloud infrastructure may store ciphertext and required routing metadata but must not receive readable operator content or usable decryption keys.
+
+### Device Trust Service
+
+Registers, verifies, approves, inventories, and revokes devices. Each device must have a distinct identity and device-bound key material.
+
+### Zero Trust Integration Gateway
+
+Connects approved external applications through isolated connectors with minimum permissions, explicit scopes, source attribution, revocation, and separate audit history.
+
+### Unified Experience Layer
+
+Presents work, life, media, finance, and personal services through a consistent interface without collapsing their security boundaries.
+
+### Action Authority Engine
+
+Defines what Rosie may view, search, summarize, recommend, prepare, or execute for every device, connector, record class, and action.
+
+### Audit and Control Center
+
+Shows devices, sessions, connectors, permissions, synchronization activity, proposed understandings, approvals, actions, failures, and revocations.
+
 ## Purpose
 
-Phase 3 extends iMOS from deterministic mission execution support into a disciplined cognitive efficiency platform. Rosie will help the operator think, review, decide, and adapt with greater clarity while preserving the local-only Zero Trust architecture established in Phases 1 and 2.
+Phase 3 establishes the trust, identity, consent, authority, and cognitive foundations required for the complete iMOS mission. Rosie will help the operator think, review, decide, and adapt with greater clarity while preparing the architecture for secure multi-device use and future integrations.
+
+Phase 3 does not implement cloud synchronization or third-party connectors. It defines the contracts they must obey.
 
 ## Operator Value
 
@@ -21,13 +77,13 @@ Phase 3 must answer four questions:
 
 ## Rosie Relationship Objective
 
-Rosie must become a trusted cognitive partner. Trust is relational, earned, and reversible. It must result from transparent behavior, explicit operator control, explainable recommendations, correction handling, predictable outputs, privacy preservation, and dependable restraint.
+Rosie must become a trusted personal operating system companion. Trust is relational, earned, and reversible. It must result from transparent behavior, explicit operator control, explainable recommendations, correction handling, predictable outputs, privacy preservation, and dependable restraint.
 
 Rosie must never represent confidence, trust, understanding, or agreement that is not supported by inspectable evidence.
 
 ## Cognitive Efficiency Objective
 
-Rosie may learn how the operator thinks only through operator-authored local records, explicit operator preferences, and deterministic interaction outcomes.
+Rosie may learn how the operator thinks only through operator-authored records, explicit operator preferences, and deterministic interaction outcomes from authorized iMOS surfaces and connectors.
 
 Permitted learning dimensions are:
 
@@ -73,31 +129,75 @@ Only operator-confirmed understandings may materially personalize planning or br
 
 ## Authority Boundaries
 
-- Rosie may observe and summarize permitted encrypted local records after vault unlock.
+- Rosie may observe and summarize permitted encrypted records after vault unlock.
 - Rosie may generate deterministic recommendations, reviews, and planning support.
 - Rosie may ask the operator to confirm or correct a proposed understanding.
 - Rosie may not expand its own authority.
-- Rosie may not activate missions, execute actions, change secrets, or modify critical records without explicit operator approval.
+- Rosie may not activate missions, execute external actions, change secrets, move funds, purchase media, send communications, or modify critical records without the exact required authority.
 - Rosie may not use trust as a reason to bypass approval.
 - Operator decisions remain final and override all Rosie suggestions.
 
+## Per-Service Permission Model
+
+Each connected service must support separately granted capabilities:
+
+- never access
+- view
+- search
+- summarize
+- recommend
+- prepare
+- execute with explicit approval
+- execute within an operator-defined rule
+
+Read permission never implies write permission. Prepare permission never implies execute permission. Authority is specific to the service, account, data class, action, device, and duration.
+
+Financial integrations begin read only. Trading, transfers, withdrawals, purchases, and account changes are prohibited until separately governed and explicitly approved in a future phase.
+
 ## Zero Trust Requirements
 
-- local browser-only execution
-- encrypted vault persistence only
-- AES-256-GCM protected vault data
-- PBKDF2-SHA256 key derivation
-- passphrase held in memory only
-- explicit verification before every protected mutation
-- least privilege between cognition, mission, vault, recovery, and secret capabilities
-- fail closed on invalid, missing, stale, or tampered state
-- no backend, cloud, telemetry, external AI, or third-party services
-- no hidden background synchronization or outbound network capability
-- auditable local provenance for every persisted understanding and correction
+- end-to-end encrypted operator data
+- AES-256-GCM protected vault content or an approved successor with documented migration
+- strong operator key derivation
+- decryption keys controlled by authorized devices
+- explicit verification before protected access or mutation
+- least privilege across cognition, missions, vault, sync, recovery, devices, connectors, and secrets
+- continuous session, device, connector, and token evaluation
+- fail closed on invalid, missing, stale, revoked, conflicting, or tampered state
+- no plaintext operator content in cloud storage, logs, telemetry, queues, caches, or connector infrastructure
+- no hidden synchronization or connector access
+- auditable provenance for persisted understandings, synchronization events, permissions, and external actions
+- network access only through approved, isolated, purpose-bound services introduced in their authorized phase
+
+## Cloud Vault and Multi-Device Requirements
+
+- encrypt operator content on an authorized device before upload
+- prevent the cloud service from receiving usable content keys
+- assign every device a unique identity and separate device key
+- require explicit approval for new devices
+- support secure device enrollment, inventory, suspension, revocation, and removal
+- support remote session revocation and lost-device response
+- support offline use with authenticated synchronization after reconnection
+- detect concurrent changes and resolve conflicts without silent data loss
+- preserve encrypted version history and recovery checkpoints
+- prevent rollback to revoked permissions or stale security state
+- make synchronization state, failures, and conflicts visible
+- provide account recovery that does not depend on Rosie or one device
+- verify recovery without exposing plaintext to the cloud provider
+- minimize cloud metadata and define retention for all unavoidable metadata
+
+## Synchronization Conflict Rules
+
+- critical security, authority, consent, secret, and financial records must never use silent last-write-wins behavior
+- conflicting critical changes require deterministic reconciliation or operator review
+- append-only audit events must preserve both valid histories
+- revoked devices and expired sessions may not upload accepted changes
+- the last known valid encrypted vault state must remain recoverable
+- merge failures must fail closed and preserve both encrypted candidates for review
 
 ## Data Boundaries
 
-Phase 3 may use:
+Permitted cognition sources include:
 
 - priorities
 - commitments
@@ -106,45 +206,49 @@ Phase 3 may use:
 - review history
 - understanding history
 - mission records
-- deterministic recommendation outcomes
+- recommendation outcomes
 - explicit operator preferences
 - explicit corrections and confirmations
+- future connector records explicitly approved for cognitive use
 
-Phase 3 must not use:
+Prohibited cognition sources include:
 
 - secret values
 - usernames or passwords from secret records
 - passphrases
-- recovery material
+- raw recovery material
 - raw credential contents
 - clipboard contents
 - unrelated browser activity
 - device surveillance
-- external data
+- connector data outside its approved purpose
+- financial credentials or transaction authority tokens
 
-Derived Phase 3 data must remain encrypted inside the vault. It must be reconstructable or safely discardable unless operator corrections must be preserved for safety and continuity.
+Derived cognitive data must remain end-to-end encrypted. It must be reconstructable or safely discardable unless operator corrections must be preserved for safety and continuity.
 
 ## Privacy Protections
 
-- no plaintext persistence of operator data
+- no plaintext persistence of operator content
 - no export without explicit operator action
 - no hidden data collection
 - no silent enrichment from external sources
-- no cross-device sharing
+- no cross-account or cross-operator data sharing
 - no dark patterns encouraging consent
-- no reduction in core functionality when optional learning is disabled
+- no reduction in core functionality when optional cognition or connectors are disabled
 - no use of relationship or trust language to pressure the operator
+- no cloud provider use of operator content for advertising or model training
+- no connector permission bundling when narrower scopes are available
 
 ## Operator Consent Requirements
 
 - Phase 3 learning is off until the operator receives a clear explanation and enables it
-- consent must be specific, informed, reversible, and recorded locally
-- learning surfaces must remain visible and operator discoverable
-- persisted learning and feedback state must be explained before creation
-- the operator must be able to inspect, confirm, correct, reject, reset, export, or disable learning
-- disabling learning must stop new signal capture immediately
-- reset must require explicit confirmation and produce a local audit event
-- no behavioral capture beyond permitted local application interactions and operator-authored vault content
+- cloud synchronization and each external connector require separate consent
+- consent must be specific, informed, reversible, purpose-bound, and recorded
+- the operator must be able to inspect, confirm, correct, reject, reset, export, or disable cognition
+- disabling cognition stops new signal capture immediately
+- revoking a connector stops new access immediately and invalidates its usable tokens
+- removing a device revokes its future synchronization authority
+- reset and destructive revocation require explicit confirmation and an audit event
 
 ## Explainability Requirements
 
@@ -156,6 +260,7 @@ Every Rosie cognition output must answer:
 4. How confident is the result and why?
 5. What can the operator do about it?
 6. Where can the operator correct or disable it?
+7. Which device, service, and permission allowed the source data?
 
 No hidden inference score may affect operator-facing behavior.
 
@@ -169,6 +274,7 @@ No hidden inference score may affect operator-facing behavior.
 - rejected understandings must not silently reappear without materially new evidence
 - stale understandings must expire or return to proposed state
 - trust-related records must never unlock authority
+- convenience must never silently expand access
 
 ## Fail Closed Behavior
 
@@ -176,12 +282,13 @@ No hidden inference score may affect operator-facing behavior.
 - migration gaps must default to safe empty structures
 - corrupted cognitive records must not unlock personalization or authority
 - missing provenance invalidates an understanding
-- unknown rule versions must not be executed
-- any validation failure must preserve the last known valid vault state
+- unknown rule versions must not execute
+- invalid device, token, permission, or synchronization state must deny access
+- any validation failure must preserve the last known valid encrypted state
 
 ## Measurable Outcomes
 
-Phase 3 success will be evaluated locally through operator-controlled measures:
+Phase 3 success will be evaluated through operator-controlled local measures:
 
 - fewer corrections required over time
 - lower recommendation dismissal caused by irrelevance
@@ -191,11 +298,11 @@ Phase 3 success will be evaluated locally through operator-controlled measures:
 - operator-confirmed usefulness of briefings and reviews
 - stable or reduced time required to reach an operator decision
 
-Metrics must never become operator performance scores. They are diagnostic signals for Rosie quality only.
+Metrics are diagnostic signals for Rosie quality only. They must never become operator performance scores.
 
 ## Phase 3 Build Sequence
 
-1. Build 013: Cognitive Contract, Consent, and Schema Foundation
+1. Build 013: Cognitive Contract, Consent, Identity, and Authority Schema
 2. Build 014: Deterministic Cognitive Signal Engine
 3. Build 015: Operator Understanding Review and Correction Center
 4. Build 016: Adaptive Briefing and Planning Presentation
@@ -204,15 +311,29 @@ Metrics must never become operator performance scores. They are diagnostic signa
 
 Each build requires its own branch, tests, documentation, pull request, and approval gate.
 
+## Enterprise Roadmap
+
+- Phase 3: trust, identity, consent, authority, and cognitive foundation
+- Phase 4: end-to-end encrypted Cloud Vault and multi-device identity
+- Phase 5: Zero Trust Integration Gateway
+- Phase 6: Microsoft 365 integration
+- Phase 7: music, audiobooks, podcasts, and personal experience services
+- Phase 8: financial awareness with read-only access first
+- Phase 9: unified experience and controlled action layer
+
+The roadmap is directional. Every phase requires a separate architecture and security approval gate.
+
 ## Build 013 Definition
 
 Build 013 establishes the safety and data foundation only.
 
 Authorized scope:
 
-- additive Phase 3 schema types
+- additive cognition, consent, device identity, authority, and connector policy schema types
 - compatibility normalization
 - cognition consent state
+- future cloud sync consent state without implementing synchronization
+- future connector permission declarations without implementing connectors
 - understanding lifecycle states
 - evidence and rule provenance
 - correction and rejection history
@@ -224,71 +345,80 @@ Authorized scope:
 
 Not authorized:
 
+- cloud synchronization
+- external connectors
 - adaptive behavior
 - automated personalization
 - mission modification
 - autonomous execution
 - external AI
-- network services
 - hidden observation
 - trust scoring
 - psychological or sensitive inference
+- trading or financial actions
 
 Build 013 acceptance gate:
 
-- consent defaults off
-- no Phase 3 signal capture before consent
+- cognition consent defaults off
+- cloud sync and connector consent declarations default off
+- no signal capture before cognition consent
+- no network activity is implemented in Build 013
 - every persisted understanding validates provenance
 - operator can inspect, correct, reject, reset, and disable
-- unknown or corrupt state fails closed
+- invalid or corrupt state fails closed
 - Builds 003 through 012 remain compatible
 - backup and recovery preserve valid Phase 3 state
 - secrets remain excluded
 - Phase 2 regression suite remains green
-- no network primitive is introduced
 - manual responsive validation shows no overlap or unintended wrapping
 
 ## General Acceptance Criteria
 
-- Rosie support measurably improves operator review and planning clarity using deterministic local-only logic
-- every Phase 3 surface is explainable, reversible, and operator controlled
-- every behavioral adaptation requires an operator-confirmed understanding
+- Rosie improves operator review and planning clarity using deterministic logic
+- every cognitive adaptation requires an operator-confirmed understanding
+- every surface is explainable, reversible, and operator controlled
+- every device and connector is independently revocable
+- no plaintext operator content or usable encryption key leaves an authorized device
 - no secret value or recovery data enters cognition outputs
-- Builds 003 through 012 vaults remain compatible
+- Builds 003 through 012 remain compatible
 - Phase 2 capabilities remain intact
-- learning-disabled mode remains fully functional
+- disabled cognition, sync, or connector modes remain safe and functional
 - operator correction produces a predictable and testable change
 
 ## Security Test Requirements
 
-- boundary scan confirms no new network primitives
-- vault encryption and passphrase handling remain unchanged
-- secret exclusion tests cover recommendations, graphs, evidence, logs, timelines, and cognition
-- tamper, invalid-state, stale-rule, and downgrade handling fail closed
+- Build 013 boundary scan confirms no network primitives
+- future network tests must enforce approved gateway-only communication
+- vault encryption and passphrase handling remain protected
+- secret exclusion tests cover recommendations, graphs, evidence, logs, timelines, cognition, synchronization metadata, and connectors
+- tamper, invalid-state, stale-rule, revoked-device, revoked-token, conflict, and downgrade handling fail closed
 - authority tests confirm Rosie cannot self-authorize actions
-- consent tests confirm no capture or persistence before enablement
-- reset and disable tests confirm immediate enforcement
+- consent tests confirm no capture, sync, or connector use before enablement
+- reset, disable, and revocation tests confirm immediate enforcement
 - provenance tests reject unsupported understandings
 
 ## Migration Requirements
 
-- additive schema changes only unless a proven safe migration path exists
+- additive schema changes only unless a proven safe migration exists
 - normalization must preserve operator data from Builds 003 through 012
-- missing Phase 3 fields hydrate deterministically with safe defaults
-- no migration may discard review, understanding, mission, correction, or feedback history
+- missing Phase 3 fields hydrate with deterministic safe defaults
+- no migration may discard review, understanding, mission, correction, permission, device, synchronization, or feedback history
 - migrations must be idempotent
-- downgrade behavior must preserve pre-Phase 3 records and fail safely on unsupported Phase 3 structures
+- downgrade behavior must preserve pre-Phase 3 records and fail safely on unsupported structures
 
 ## Rollback Requirements
 
 - Phase 3 features must be disableable without corrupting vault state
 - persisted Phase 3 structures must degrade safely when absent
 - rollback must preserve all pre-Phase 3 operator records
-- rollback must not reactivate rejected understandings
-- a pre-implementation backup and tested recovery path are required before each schema release
+- rollback must not reactivate rejected understandings, revoked devices, expired sessions, or revoked connectors
+- a backup and tested recovery path are required before each schema release
+- future cloud releases require a verified local recovery path independent of cloud availability
 
 ## Definition of Done
 
-Phase 3 implementation is complete only when Rosie improves operator cognitive efficiency through deterministic, explainable, consent-based local behavior while preserving Zero Trust security, backward compatibility, operator authority, correction, privacy, and full reversibility.
+Phase 3 is complete only when Rosie improves operator cognitive efficiency through deterministic, explainable, consent-based behavior while preserving Zero Trust security, backward compatibility, operator authority, correction, privacy, and reversibility.
+
+The complete iMOS destination is a secure, multi-device, cloud-synchronized personal operating system companion with isolated, permissioned integrations and a unified operator experience.
 
 Phase 3 planning is approved only after this document is reviewed and accepted. Build 013 application work must not begin before that approval.
