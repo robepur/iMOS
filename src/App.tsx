@@ -13,6 +13,7 @@ import VaultGate from './features/vault/VaultGate'
 import DataPanel from './features/vault/DataPanel'
 import { Arrival, Brief, FocusView, Reflection, TimelineItem } from './features/arrival/OperatingLoop'
 import PriorityConsole from './features/priorities/PriorityConsole'
+import { CognitionConsentPanel } from './features/cognition'
 
 const ReviewCenter           = lazy(() => import('./features/review/ReviewCenter'))
 const RecoveryConsole        = lazy(() => import('./features/recovery/RecoveryConsole'))
@@ -44,6 +45,7 @@ export default function App() {
   const [showKnowledge, setShowKnowledge]           = useState(false)
   const [showUnderstanding, setShowUnderstanding]   = useState(false)
   const [showMissions, setShowMissions]             = useState(false)
+  const [showCognition, setShowCognition]           = useState(false)
 
   const date = useMemo(() => new Intl.DateTimeFormat('en-US', { weekday: 'long', month: 'long', day: 'numeric' }).format(new Date()), [])
 
@@ -120,6 +122,7 @@ export default function App() {
             <BrainCircuit size={16} /> UNDERSTAND
           </button>
           <button className="utilityButton" onClick={() => setShowMissions(true)}><Route size={16} /> MISSION</button>
+          <button className="utilityButton" onClick={() => setShowCognition(true)}><BrainCircuit size={16} /> COGNITION</button>
           <button className="utilityButton" onClick={() => setShowKnowledge(true)}><Network size={16} /> KNOWLEDGE</button>
           <button className="utilityButton" onClick={() => setShowPriorities(true)}><ListChecks size={16} /> PRIORITIES</button>
           <button className="utilityButton" onClick={() => setShowSecrets(true)}><KeyRound size={16} /> SECRETS</button>
@@ -156,6 +159,13 @@ export default function App() {
           )}
           {showKnowledge && <KnowledgeGraphViewer graph={graph} onClose={() => setShowKnowledge(false)} />}
           {showUnderstanding && understanding && <UnderstandingDashboard understanding={understanding} onClose={() => setShowUnderstanding(false)} />}
+          {showCognition && data.cognitionConsent && (
+            <CognitionConsentPanel
+              consent={data.cognitionConsent}
+              onUpdate={vault.updateCognitionConsent}
+              onClose={() => setShowCognition(false)}
+            />
+          )}
         </Suspense>
       </ErrorBoundary>
 
