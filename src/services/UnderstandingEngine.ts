@@ -1,0 +1,307 @@
+/**
+ * UnderstandingEngine — orchestrates all sub-engines and produces
+ * a deterministic OperatorUnderstanding from encrypted vault data.
+ *
+ * Rules:
+ * - No AI, no ML, no probabilistic inference.
+ * - Every summary statement includes evidence.
+ * - All data derived from operator-supplied encrypted records only.
+ */
+
+import type { PersonalData } from '../localData'
+import { BehaviorEngine } from './BehaviorEngine'
+import { PatternEngine } from './PatternEngine'
+import { TrendEngine } from './TrendEngine'
+import { ConsistencyEngine } from './ConsistencyEngine'
+import { OperationalDriftEngine } from './OperationalDriftEngine'
+import type { BehaviorReport } from './BehaviorEngine'
+import type { PatternReport } from './PatternEngine'
+import type { TrendReport } from './TrendEngine'
+import type { ConsistencyReport } from './ConsistencyEngine'
+import type { DriftReport } from './OperationalDriftEngine'
+import type { ConsistencyDimension } from './ConsistencyEngine'
+
+export type OperatorUnderstanding = {
+  behavior: BehaviorReport
+  patterns: PatternReport
+  trends: TrendReport
+  consistency: ConsistencyReport
+  drift: DriftReport
+  summary: string[]
+  statistics: UnderstandingStatistics
+  generatedAt: string
+}
+
+export type UnderstandingStatistics = {
+  mostCommonPattern: string | null
+  longestCompletionStreak: number
+  longestReflectionStreak: number
+  avgDecisionAgeDays: number | null
+  avgPriorityLifetimeDays: number | null
+  avgCommitmentLifetimeDays: number | null
+  recommendationCompletionRate: number
+  recommendationOutcomes: RecommendationOutcomeStats
+}
+
+export type RecommendationOutcomeStats = {
+  total: number
+  completed: number
+  dismissed: number
+  snoozed: number
+  ignored: number
+  active: number
+}
+
+export type UnderstandingObservation = {
+  noticed: string
+  why: string
+  evidence: string
+  action?: string
+}
+
+const MS_PER_DAY = 86_400_000
+
+export const UnderstandingEngine = {
+  /**
+   * Analyze all vault data and produce a complete OperatorUnderstanding.
+   */
+  analyze(data: PersonalData): OperatorUnderstanding {
+    const behavior    = BehaviorEngine.analyze(data)
+    const patterns    = PatternEngine.analyze(data)
+    const trends      = TrendEngine.analyze(data)
+    const consistency = ConsistencyEngine.analyze(data)
+    const drift       = OperationalDriftEngine.analyze(data)
+    const statistics  = UnderstandingEngine.computeStatistics(data, behavior, patterns)
+    const summary     = UnderstandingEngine.generateSummary(behavior, patterns, trends, consistency, drift)
+
+    return { behavior, patterns, trends, consistency, drift, summary, statistics, generatedAt: new Date().toISOString() }
+  },
+
+  /**
+   * Generate plain-language understanding summary.
+   * Every statement is derived from evidence — never invented.
+   */
+  generateSummary(
+    behavior: BehaviorReport,
+    patterns: PatternReport,
+    trends: TrendReport,
+    consistency: ConsistencyReport,
+    drift: DriftReport,
+  ): string[] {
+    const lines: string[] = []
+
+    // Execution frequency
+    const { prioritiesCompletedLast30Days, avgDaysToCompletePriority } = behavior.executionFrequency
+    if (prioritiesCompletedLast30Days > 0) {
+      lines.push(`You completed ${prioritiesCompletedLast30Days} priorit${prioritiesCompletedLast30Days !== 1 ? 'ies' : 'y'} in the last 30 days.`)
+    }
+    if (avgDaysToCompletePriority !== null) {
+      lines.push(`On average, priorities are completed within ${avgDaysToCompletePriority} days of creation.`)
+    }
+
+    // Completion rate
+    const { priorityCompletionPercent, commitmentCompletionPercent } = behavior.completionRate
+    if (priorityCompletionPercent >= 70) {
+      lines.push(`Priority completion rate is ${priorityCompletionPercent}% — a strong execution record.`)
+    } else if (priorityCompletionPercent > 0) {
+      lines.push(`Priority completion rate is ${priorityCompletionPercent}%. There is room to improve execution follow-through.`)
+    }
+    if (commitmentCompletionPercent >= 60) {
+      lines.push(`Commitment completion has reached ${commitmentCompletionPercent}%.`)
+    }
+
+    // Decision aging
+    if (behavior.decisionAging.avgAgeDays !== null && behavior.decisionAging.avgAgeDays > 14) {
+      lines.push(`Open decision age averages ${behavior.decisionAging.avgAgeDays} days — decisions are aging without resolution.`)
+    }
+
+    // Reflection streak
+    if (patterns.reflectionStreak.current >= 3) {
+      lines.push(`An active reflection streak of ${patterns.reflectionStreak.current} days is in progress.`)
+    }
+
+    // Trend: reflection frequency
+    if (trends.reflectionFrequency.direction === 'decreasing') {
+      lines.push(`Reflection frequency has decreased compared to the prior period (${trends.reflectionFrequency.priorValue} → ${trends.reflectionFrequency.recentValue}).`)
+    } else if (trends.reflectionFrequency.direction === 'increasing') {
+      lines.push(`Reflection frequency has increased — ${trends.reflectionFrequency.recentValue} reflections in the last 30 days.`)
+    }
+
+    // Trend: completion rate
+    if (trends.completionRate.direction === 'decreasing') {
+      lines.push(`Priority completion rate has declined compared to the prior 30-day period.`)
+    } else if (trends.completionRate.direction === 'increasing') {
+      lines.push(`Priority completion rate has improved compared to the prior 30-day period.`)
+    }
+
+    // Consistency summary
+    if (consistency.overall === 'excellent') {
+      lines.push(`Overall operational consistency is excellent across all dimensions.`)
+    } else if (consistency.overall === 'needs_attention') {
+      const dims = Object.values(consistency)
+        .filter((d): d is ConsistencyDimension => typeof d === 'object' && 'label' in d && d.rating === 'needs_attention')
+        .map((d) => d.label)
+      if (dims.length > 0) lines.push(`Consistency needs attention in: ${dims.join(', ')}.`)
+    }
+
+    // Operational drift
+    if (drift.hasCritical) {
+      lines.push(`Critical operational drift detected. Immediate attention is required.`)
+    } else if (drift.hasWarnings) {
+      lines.push(`${drift.signals.filter((s) => s.severity === 'warning').length} drift warning${drift.signals.length !== 1 ? 's' : ''} detected. Review recommended.`)
+    } else if (drift.isClean) {
+      lines.push(`No operational drift detected. Operational state is within normal parameters.`)
+    }
+
+    // Repeated successes
+    if (patterns.repeatedSuccesses.length > 0) {
+      lines.push(...patterns.repeatedSuccesses)
+    }
+
+    return lines
+  },
+
+  /**
+   * Compute summary statistics for the Statistics panel.
+   */
+  computeStatistics(
+    data: PersonalData,
+    behavior: BehaviorReport,
+    patterns: PatternReport,
+  ): UnderstandingStatistics {
+    // Most common reflection theme
+    const mostCommonPattern = patterns.reflectionThemes[0]?.keyword ?? null
+
+    // Avg priority lifetime (creation to completion)
+    const completedWithDuration = data.priorities
+      .filter((p) => p.completed && p.completedAt)
+      .map((p) => (new Date(p.completedAt!).getTime() - new Date(p.createdAt).getTime()) / MS_PER_DAY)
+      .filter((d) => d >= 0)
+    const avgPriorityLifetimeDays = completedWithDuration.length > 0
+      ? parseFloat((completedWithDuration.reduce((a, b) => a + b, 0) / completedWithDuration.length).toFixed(1))
+      : null
+
+    // Avg commitment lifetime (creation to completion)
+    const completedCommits = data.commitments
+      .filter((c) => c.status === 'complete')
+      .map((c) => (Date.now() - new Date(c.createdAt).getTime()) / MS_PER_DAY)
+      .filter((d) => d >= 0)
+    const avgCommitmentLifetimeDays = completedCommits.length > 0
+      ? parseFloat((completedCommits.reduce((a, b) => a + b, 0) / completedCommits.length).toFixed(1))
+      : null
+
+    // Recommendation completion rate (dismissed = acted on or deliberately skipped)
+    const recs = data.recommendations ?? []
+    const outcomes = UnderstandingEngine.computeRecommendationOutcomes(data)
+    const dismissed = recs.filter((r) => r.dismissed).length
+    const recCompletionRate = recs.length > 0 ? Math.round((dismissed / recs.length) * 100) : 0
+
+    return {
+      mostCommonPattern,
+      longestCompletionStreak: patterns.completionStreak.longest,
+      longestReflectionStreak: patterns.reflectionStreak.longest,
+      avgDecisionAgeDays: behavior.decisionAging.avgAgeDays,
+      avgPriorityLifetimeDays,
+      avgCommitmentLifetimeDays,
+      recommendationCompletionRate: recCompletionRate,
+      recommendationOutcomes: outcomes,
+    }
+  },
+
+  computeRecommendationOutcomes(data: PersonalData): RecommendationOutcomeStats {
+    const now = Date.now()
+    const recs = data.recommendations ?? []
+    const completed = recs.filter((r) => r.completed).length
+    const dismissed = recs.filter((r) => r.dismissed).length
+    const snoozed = recs.filter((r) => !r.completed && !r.dismissed && r.snoozedUntil && new Date(r.snoozedUntil) > new Date()).length
+    const active = recs.filter((r) => !r.completed && !r.dismissed && !(r.snoozedUntil && new Date(r.snoozedUntil) > new Date())).length
+    const ignored = recs.filter((r) => {
+      if (r.completed || r.dismissed) return false
+      if (r.snoozedUntil && new Date(r.snoozedUntil) > new Date()) return false
+      const ageDays = Math.floor((now - new Date(r.createdAt).getTime()) / MS_PER_DAY)
+      const hasOperatorActivityAfter = data.timeline.some((e) => new Date(e.createdAt) > new Date(r.createdAt) && e.type !== 'system')
+      return ageDays >= 7 && hasOperatorActivityAfter
+    }).length
+
+    return { total: recs.length, completed, dismissed, snoozed, ignored, active }
+  },
+
+  getMorningObservations(understanding: OperatorUnderstanding): UnderstandingObservation[] {
+    const observations: UnderstandingObservation[] = []
+    const outcomes = understanding.statistics.recommendationOutcomes
+
+    if (understanding.trends.commitmentLoad.direction === 'increasing') {
+      observations.push({
+        noticed: 'Commitment load is increasing',
+        why: 'Rising commitment intake can outpace execution and increase carry-over risk.',
+        evidence: understanding.trends.commitmentLoad.evidence[0] ?? 'Commitment creation increased in the recent period.',
+        action: 'Close or reschedule open commitments before adding new ones.',
+      })
+    }
+    if (understanding.trends.reflectionFrequency.direction === 'decreasing') {
+      observations.push({
+        noticed: 'Reflection frequency has declined',
+        why: 'Reduced reflection weakens feedback loops and memory quality.',
+        evidence: understanding.trends.reflectionFrequency.evidence[0] ?? 'Reflection volume dropped versus prior period.',
+        action: 'Complete reflection at the end of each execution cycle.',
+      })
+    }
+    if (understanding.behavior.decisionAging.avgAgeDays !== null && understanding.behavior.decisionAging.avgAgeDays > 14) {
+      observations.push({
+        noticed: 'Open decisions are aging',
+        why: 'Aging unresolved decisions create blocking ambiguity for execution.',
+        evidence: `Average open decision age is ${understanding.behavior.decisionAging.avgAgeDays} days.`,
+        action: 'Resolve oldest open decisions first.',
+      })
+    }
+    if (outcomes.ignored > 0) {
+      observations.push({
+        noticed: 'Some recommendations appear ignored',
+        why: 'Unaddressed recurring signals can compound operational drift.',
+        evidence: `${outcomes.ignored} recommendation${outcomes.ignored !== 1 ? 's' : ''} remained active for 7+ days despite subsequent operator activity.`,
+        action: 'Complete, snooze, or dismiss stale recommendations explicitly.',
+      })
+    }
+
+    return observations.slice(0, 3)
+  },
+
+  getEveningObservations(understanding: OperatorUnderstanding): UnderstandingObservation[] {
+    const observations: UnderstandingObservation[] = []
+    const completed = understanding.behavior.executionFrequency.prioritiesCompletedLast7Days
+
+    observations.push({
+      noticed: 'Execution completed',
+      why: 'Consistent execution converts plans into outcomes.',
+      evidence: `${completed} priorities completed in the last 7 days.`,
+    })
+
+    if (understanding.patterns.repeatedFailures.length > 0) {
+      observations.push({
+        noticed: 'Pattern changes detected',
+        why: 'Recurring failures can be reduced by immediate corrective action.',
+        evidence: understanding.patterns.repeatedFailures[0],
+        action: 'Adjust tomorrow’s priority set to reduce repeated delay patterns.',
+      })
+    }
+
+    if (!understanding.drift.isClean) {
+      observations.push({
+        noticed: 'Operational drift remains active',
+        why: 'Drift signals indicate execution quality is deviating from baseline.',
+        evidence: `${understanding.drift.signals.length} drift signal${understanding.drift.signals.length !== 1 ? 's' : ''} currently active.`,
+        action: 'Review drift tab and address highest-severity signal first.',
+      })
+    }
+
+    return observations.slice(0, 3)
+  },
+
+  derivePatternKeys(patterns: PatternReport): string[] {
+    return [
+      ...patterns.repeatedFailures.map((f) => `failure:${f}`),
+      ...patterns.repeatedSuccesses.map((s) => `success:${s}`),
+      ...patterns.repeatedRecommendationDismissals.map((d) => `dismissal:${d.category}:${d.count}`),
+    ]
+  },
+}

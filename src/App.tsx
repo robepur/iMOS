@@ -1,240 +1,178 @@
-import { FormEvent, useEffect, useMemo, useState } from 'react'
-import {
-  ArrowRight,
-  CheckCircle2,
-  Clock3,
-  Download,
-  Focus,
-  Lock,
-  LockKeyhole,
-  Plus,
-  RotateCcw,
-  ShieldCheck,
-  Sparkles,
-  Unlock
-} from 'lucide-react'
-import { Commitment, createId, createInitialData, Decision, PersonalData, TimelineEntry } from './localData'
-import {
-  clearVault,
-  exportEncryptedVault,
-  legacyDataExists,
-  readLegacyData,
-  saveVault,
-  unlockVault,
-  vaultExists
-} from './vault'
+import { lazy, Suspense, useEffect, useMemo, useState } from 'react'
+import { BrainCircuit, Clock3, KeyRound, ListChecks, Lock, LockKeyhole, Network, Route, ShieldCheck, Zap } from 'lucide-react'
+import { useVault } from './hooks/useVault'
+import { usePriorities } from './hooks/usePriorities'
+import { useSecrets } from './hooks/useSecrets'
+import { useRecommendations } from './hooks/useRecommendations'
+import { useKnowledgeGraph } from './hooks/useKnowledgeGraph'
+import { useUnderstanding } from './hooks/useUnderstanding'
+import { RosieEngine } from './services/RosieEngine'
+import { UnderstandingEngine } from './services/UnderstandingEngine'
+import { ErrorBoundary } from './components/ErrorBoundary'
+import VaultGate from './features/vault/VaultGate'
+import DataPanel from './features/vault/DataPanel'
+import { Arrival, Brief, FocusView, Reflection, TimelineItem } from './features/arrival/OperatingLoop'
+import PriorityConsole from './features/priorities/PriorityConsole'
+
+const ReviewCenter           = lazy(() => import('./features/review/ReviewCenter'))
+const RecoveryConsole        = lazy(() => import('./features/recovery/RecoveryConsole'))
+const SecretsConsole         = lazy(() => import('./features/secrets/SecretsConsole'))
+const ReflectionHistory      = lazy(() => import('./features/reflection/ReflectionHistory'))
+const RecommendationCenter   = lazy(() => import('./features/rosie/RecommendationCenter'))
+const KnowledgeGraphViewer   = lazy(() => import('./features/knowledge/KnowledgeGraphViewer'))
+const UnderstandingDashboard = lazy(() => import('./features/understanding/UnderstandingDashboard'))
+const MissionPlanner         = lazy(() => import('./features/missions/MissionPlanner'))
 
 type Mode = 'arrival' | 'brief' | 'focus' | 'reflection'
-type VaultState = 'setup' | 'locked' | 'unlocked'
 
 export default function App() {
-  const [vaultState, setVaultState] = useState<VaultState>(() => vaultExists() ? 'locked' : 'setup')
-  const [data, setData] = useState<PersonalData | null>(null)
-  const [passphrase, setPassphrase] = useState('')
+  const vault = useVault()
+  const { activePriorities, primary, criticalCount, overdueCount } = usePriorities(vault.data)
+  const secrets = useSecrets(vault.data)
+  const { active: recs, patterns, criticalCount: recCritical } = useRecommendations(vault.data)
+  const { graph, getStats } = useKnowledgeGraph(vault.data)
+  const { understanding } = useUnderstanding(vault.data)
+
   const [mode, setMode] = useState<Mode>('arrival')
-  const [showDataPanel, setShowDataPanel] = useState(false)
-  const [error, setError] = useState('')
-  const [saving, setSaving] = useState(false)
+  const [showDataPanel, setShowDataPanel]           = useState(false)
+  const [showRecovery, setShowRecovery]             = useState(false)
+  const [showSecrets, setShowSecrets]               = useState(false)
+  const [showPriorities, setShowPriorities]         = useState(false)
+  const [showReflections, setShowReflections]       = useState(false)
+  const [showReview, setShowReview]                 = useState(false)
+  const [showRosie, setShowRosie]                   = useState(false)
+  const [showKnowledge, setShowKnowledge]           = useState(false)
+  const [showUnderstanding, setShowUnderstanding]   = useState(false)
+  const [showMissions, setShowMissions]             = useState(false)
+
   const date = useMemo(() => new Intl.DateTimeFormat('en-US', { weekday: 'long', month: 'long', day: 'numeric' }).format(new Date()), [])
 
   useEffect(() => {
-    if (vaultState !== 'unlocked' || !data || !passphrase) return
-    const timeout = window.setTimeout(async () => {
-      setSaving(true)
-      try {
-        await saveVault(data, passphrase)
-      } finally {
-        setSaving(false)
+    if (!understanding || !vault.data) return
+    const nextState = {
+      activeDriftSignals: understanding.drift.signals.map((s) => s.id),
+      activePatternKeys: UnderstandingEngine.derivePatternKeys(understanding.patterns),
+      trendDirections: {
+        priorityLoad: understanding.trends.priorityLoad.direction,
+        commitmentLoad: understanding.trends.commitmentLoad.direction,
+        decisionLoad: understanding.trends.decisionLoad.direction,
+        reflectionFrequency: understanding.trends.reflectionFrequency.direction,
+        recommendationVolume: understanding.trends.recommendationVolume.direction,
+        completionRate: understanding.trends.completionRate.direction,
+      },
+    }
+
+    const previous = vault.data.understandingState ?? { activeDriftSignals: [], activePatternKeys: [], trendDirections: {} }
+    const events: Array<{ type: 'system'; title: string; detail: string }> = []
+
+    const newDrift = nextState.activeDriftSignals.filter((id) => !previous.activeDriftSignals.includes(id))
+    const resolvedDrift = previous.activeDriftSignals.filter((id) => !nextState.activeDriftSignals.includes(id))
+    newDrift.forEach((id) => events.push({ type: 'system', title: 'Operational drift detected', detail: id }))
+    resolvedDrift.forEach((id) => events.push({ type: 'system', title: 'Pattern resolved', detail: `Drift resolved: ${id}` }))
+
+    const newPatterns = nextState.activePatternKeys.filter((id) => !previous.activePatternKeys.includes(id))
+    const resolvedPatterns = previous.activePatternKeys.filter((id) => !nextState.activePatternKeys.includes(id))
+    newPatterns.forEach((key) => events.push({ type: 'system', title: 'Pattern detected', detail: key }))
+    resolvedPatterns.forEach((key) => events.push({ type: 'system', title: 'Pattern resolved', detail: key }))
+
+    Object.entries(nextState.trendDirections).forEach(([dimension, direction]) => {
+      if (previous.trendDirections[dimension] !== direction) {
+        events.push({ type: 'system', title: 'Trend detected', detail: `${dimension}:${direction}` })
       }
-    }, 250)
-    return () => window.clearTimeout(timeout)
-  }, [data, passphrase, vaultState])
+    })
 
-  async function createVault(newPassphrase: string) {
-    setError('')
-    try {
-      const startingData = legacyDataExists() ? readLegacyData() ?? createInitialData() : createInitialData()
-      await saveVault(startingData, newPassphrase)
-      setPassphrase(newPassphrase)
-      setData(startingData)
-      setVaultState('unlocked')
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'Unable to create the encrypted vault.')
-    }
+    vault.syncUnderstandingState(nextState, events)
+  }, [understanding, vault])
+
+  if (vault.vaultState !== 'unlocked' || !vault.data) {
+    return <VaultGate state={vault.vaultState as 'setup' | 'locked'} error={vault.error} onCreate={vault.createVault} onUnlock={vault.unlock} />
   }
 
-  async function unlock(pass: string) {
-    setError('')
-    try {
-      const unlocked = await unlockVault(pass)
-      setPassphrase(pass)
-      setData(unlocked)
-      setVaultState('unlocked')
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'Unable to unlock the vault.')
-    }
-  }
+  const { data } = vault
+  const healthSignals = RosieEngine.getHealthSignals(data)
+  const morningBrief = RosieEngine.getMorningBrief(data)
+  const eveningSummary = RosieEngine.getEveningSummary(data)
+  const openCommitments = data.commitments.filter((c) => c.status === 'open').length
+  const graphStats = getStats()
+  const driftCritical = understanding?.drift.hasCritical ?? false
+  const morningObservations = understanding ? UnderstandingEngine.getMorningObservations(understanding) : []
+  const eveningObservations = understanding ? UnderstandingEngine.getEveningObservations(understanding) : []
 
-  function lock() {
-    setData(null)
-    setPassphrase('')
-    setMode('arrival')
-    setShowDataPanel(false)
-    setVaultState('locked')
-  }
-
-  function reset() {
-    const confirmed = window.confirm('Erase the encrypted iMOS vault from this browser? This cannot be undone without an exported vault backup.')
-    if (!confirmed) return
-    clearVault()
-    setData(null)
-    setPassphrase('')
-    setMode('arrival')
-    setShowDataPanel(false)
-    setVaultState('setup')
-  }
-
-  if (vaultState !== 'unlocked' || !data) {
-    return <VaultGate state={vaultState} error={error} onCreate={createVault} onUnlock={unlock} />
-  }
-
-  const openCommitments = data.commitments.filter((item) => item.status === 'open').length
-  const openDecisions = data.decisions.filter((item) => item.status === 'open').length
-  const primary = data.priorities.find((item) => !item.completed)
   const stateItems = [
     ['Executive State', mode === 'focus' ? 'Focused' : 'Aware'],
-    ['Vault', saving ? 'Securing' : 'Encrypted'],
-    ['Decisions', openDecisions ? `${openDecisions} Open` : 'Clear'],
-    ['Commitments', openCommitments ? `${openCommitments} Open` : 'On Track']
+    ['Vault', vault.saving ? 'Securing' : 'Encrypted'],
+    ['Priorities', criticalCount ? `${criticalCount} Critical` : activePriorities.length ? `${activePriorities.length} Active` : 'Clear'],
+    ['Commitments', openCommitments ? `${openCommitments} Open` : 'On Track'],
+    ['Rosie', recCritical > 0 ? `${recCritical} Critical` : recs.length > 0 ? `${recs.length} Recs` : 'Clear'],
+    ['Graph', graphStats.totalEdges > 0 ? `${graphStats.totalEdges} Links` : 'Building'],
   ]
 
-  function addTimeline(entry: Omit<TimelineEntry, 'id' | 'createdAt'>) {
-    setData((current) => current ? ({ ...current, timeline: [{ ...entry, id: createId('timeline'), createdAt: new Date().toISOString() }, ...current.timeline] }) : current)
-  }
+  return (
+    <main className="shell">
+      <header className="topbar">
+        <div><p className="eyebrow">INDIVIDUAL MISSION OPERATING SYSTEM</p><h1>iMOS</h1></div>
+        <div className="topActions">
+          <button className="utilityButton" onClick={() => setShowReview(true)}><ShieldCheck size={16} /> REVIEW</button>
+          <button className={`utilityButton${recs.length > 0 ? ' utilityButton--alert' : ''}`} onClick={() => setShowRosie(true)}>
+            <Zap size={16} /> ROSIE{recs.length > 0 ? ` (${recs.length})` : ''}
+          </button>
+          <button className={`utilityButton${driftCritical ? ' utilityButton--alert' : ''}`} onClick={() => setShowUnderstanding(true)}>
+            <BrainCircuit size={16} /> UNDERSTAND
+          </button>
+          <button className="utilityButton" onClick={() => setShowMissions(true)}><Route size={16} /> MISSION</button>
+          <button className="utilityButton" onClick={() => setShowKnowledge(true)}><Network size={16} /> KNOWLEDGE</button>
+          <button className="utilityButton" onClick={() => setShowPriorities(true)}><ListChecks size={16} /> PRIORITIES</button>
+          <button className="utilityButton" onClick={() => setShowSecrets(true)}><KeyRound size={16} /> SECRETS</button>
+          <button className="utilityButton" onClick={() => setShowDataPanel((v) => !v)}><LockKeyhole size={16} /> VAULT</button>
+          <button className="utilityButton" onClick={vault.lock}><Lock size={16} /> LOCK</button>
+          <div className="secure"><ShieldCheck size={17} /> ENCRYPTED MODE</div>
+        </div>
+      </header>
 
-  function addCommitment(title: string, due: string) {
-    const item: Commitment = { id: createId('commitment'), title, due, status: 'open', createdAt: new Date().toISOString() }
-    setData((current) => current ? ({ ...current, commitments: [item, ...current.commitments] }) : current)
-    addTimeline({ type: 'commitment', title: 'Commitment captured', detail: title })
-  }
+      {showDataPanel && <DataPanel onClose={() => setShowDataPanel(false)} onOpenRecovery={() => setShowRecovery(true)} onReset={vault.reset} />}
 
-  function addDecision(title: string, context: string) {
-    const item: Decision = { id: createId('decision'), title, context, status: 'open', createdAt: new Date().toISOString() }
-    setData((current) => current ? ({ ...current, decisions: [item, ...current.decisions] }) : current)
-    addTimeline({ type: 'decision', title: 'Decision opened', detail: title })
-  }
+      <ErrorBoundary>
+        <Suspense fallback={null}>
+          {showPriorities && <PriorityConsole priorities={data.priorities} onChange={vault.updatePriorities} onClose={() => setShowPriorities(false)} />}
+          {showSecrets && <SecretsConsole records={secrets.records} onChange={vault.updateSecrets} onClose={() => setShowSecrets(false)} />}
+          {showRecovery && <RecoveryConsole onClose={() => setShowRecovery(false)} onRestore={vault.restoreVault} onRotate={vault.rotateVaultPassphrase} />}
+          {showReflections && <ReflectionHistory reflections={data.reflections} onDelete={vault.deleteReflection} onClose={() => setShowReflections(false)} />}
+          {showReview && <ReviewCenter data={data} onDeleteReflection={vault.deleteReflection} onClose={() => setShowReview(false)} />}
+          {showRosie && <RecommendationCenter recs={recs} patterns={patterns} healthSignals={healthSignals} onComplete={vault.completeRecommendation} onDismiss={vault.dismissRecommendation} onSnooze={vault.snoozeRecommendation} onClose={() => setShowRosie(false)} />}
+          {showMissions && (
+            <MissionPlanner
+              data={data}
+              onClose={() => setShowMissions(false)}
+              onSaveMissionPlan={vault.saveMissionPlan}
+              onSetMissionPlanStatus={vault.setMissionPlanStatus}
+              onUpdateMissionPlan={vault.updateMissionPlan}
+              onUpdateMissionStepStatus={vault.updateMissionStepStatus}
+              onUpdateMissionStep={vault.updateMissionStep}
+              onAddMissionStep={vault.addMissionStep}
+              onDeleteMissionStep={vault.deleteMissionStep}
+              onReorderMissionSteps={vault.reorderMissionSteps}
+              onDeleteMissionPlan={vault.deleteMissionPlan}
+            />
+          )}
+          {showKnowledge && <KnowledgeGraphViewer graph={graph} onClose={() => setShowKnowledge(false)} />}
+          {showUnderstanding && understanding && <UnderstandingDashboard understanding={understanding} onClose={() => setShowUnderstanding(false)} />}
+        </Suspense>
+      </ErrorBoundary>
 
-  function toggleCommitment(id: string) {
-    setData((current) => current ? ({ ...current, commitments: current.commitments.map((item) => item.id === id ? { ...item, status: item.status === 'open' ? 'complete' : 'open' } : item) }) : current)
-  }
+      <section className="statebar">{stateItems.map(([label, value]) => <div key={label}><span>{label}</span><strong>{value}</strong></div>)}</section>
 
-  function toggleDecision(id: string) {
-    setData((current) => current ? ({ ...current, decisions: current.decisions.map((item) => item.id === id ? { ...item, status: item.status === 'open' ? 'decided' : 'open' } : item) }) : current)
-  }
-
-  function completePriority() {
-    if (!primary) return
-    setData((current) => current ? ({ ...current, priorities: current.priorities.map((item) => item.id === primary.id ? { ...item, completed: true } : item) }) : current)
-  }
-
-  function saveReflection(accomplished: string, remember: string, tomorrow: string) {
-    const createdAt = new Date().toISOString()
-    setData((current) => current ? ({
-      ...current,
-      reflections: [{ id: createId('reflection'), accomplished, remember, tomorrow, createdAt }, ...current.reflections],
-      timeline: [{ id: createId('timeline'), type: 'reflection', title: 'Executive reflection completed', detail: accomplished || 'Session reviewed.', createdAt }, ...current.timeline]
-    }) : current)
-    setMode('arrival')
-  }
-
-  return <main className="shell">
-    <header className="topbar">
-      <div><p className="eyebrow">INDIVIDUAL MISSION OPERATING SYSTEM</p><h1>iMOS</h1></div>
-      <div className="topActions">
-        <button className="utilityButton" onClick={() => setShowDataPanel((value) => !value)}><LockKeyhole size={16} /> VAULT</button>
-        <button className="utilityButton" onClick={lock}><Lock size={16} /> LOCK</button>
-        <div className="secure"><ShieldCheck size={17} /> ENCRYPTED MODE</div>
-      </div>
-    </header>
-
-    {showDataPanel && <section className="dataPanel panel">
-      <div><p className="eyebrow">BUILD 003 VAULT CONTROL</p><h3>Encrypted on this device.</h3><p>Personal data is encrypted with AES GCM using a passphrase derived key. The passphrase is held only in memory while this session is unlocked.</p></div>
-      <div className="dataActions">
-        <button className="secondaryButton" onClick={exportEncryptedVault}><Download size={16} /> EXPORT VAULT</button>
-        <button className="dangerButton" onClick={reset}><RotateCcw size={16} /> ERASE</button>
-      </div>
-    </section>}
-
-    <section className="statebar">{stateItems.map(([label, value]) => <div key={label}><span>{label}</span><strong>{value}</strong></div>)}</section>
-
-    <section className="workspace">
-      <div className="primary panel">
-        {mode === 'arrival' && <Arrival date={date} primary={primary} onBegin={() => setMode('brief')} />}
-        {mode === 'brief' && <Brief data={data} onAddCommitment={addCommitment} onAddDecision={addDecision} onToggleCommitment={toggleCommitment} onToggleDecision={toggleDecision} onBegin={() => setMode('focus')} />}
-        {mode === 'focus' && <FocusView primary={primary} onCompletePriority={completePriority} onComplete={() => setMode('reflection')} />}
-        {mode === 'reflection' && <Reflection onSave={saveReflection} />}
-      </div>
-      <aside className="timeline panel">
-        <div className="panelTitle"><Clock3 size={17} /><span>EXECUTIVE TIMELINE</span></div>
-        {data.timeline.slice(0, 8).map((entry) => <TimelineItem key={entry.id} entry={entry} />)}
-      </aside>
-    </section>
-  </main>
+      <section className="workspace">
+        <div className="primary panel">
+          {mode === 'arrival' && <Arrival date={date} data={data} primary={primary} onBegin={() => setMode('brief')} />}
+          {mode === 'brief' && <Brief data={data} overdueCount={overdueCount} criticalCount={criticalCount} secretCount={secrets.count} morningBrief={morningBrief} morningObservations={morningObservations} onAddCommitment={vault.addCommitment} onAddDecision={vault.addDecision} onToggleCommitment={vault.toggleCommitment} onToggleDecision={vault.toggleDecision} onOpenPriorities={() => setShowPriorities(true)} onOpenReflectionHistory={() => setShowReflections(true)} onBegin={() => setMode('focus')} />}
+          {mode === 'focus' && <FocusView primary={primary} onCompletePriority={() => primary && vault.completePrimaryPriority(primary)} onComplete={() => setMode('reflection')} />}
+          {mode === 'reflection' && <Reflection eveningSummary={eveningSummary} eveningObservations={eveningObservations} onSave={(a, r, t) => { vault.saveReflection(a, r, t); setMode('arrival') }} />}
+        </div>
+        <aside className="timeline panel">
+          <div className="panelTitle"><Clock3 size={17} /><span>EXECUTIVE TIMELINE</span></div>
+          {data.timeline.slice(0, 8).map((entry) => <TimelineItem key={entry.id} entry={entry} />)}
+        </aside>
+      </section>
+    </main>
+  )
 }
-
-function VaultGate({ state, error, onCreate, onUnlock }: { state: 'setup' | 'locked'; error: string; onCreate: (passphrase: string) => Promise<void>; onUnlock: (passphrase: string) => Promise<void> }) {
-  const [first, setFirst] = useState('')
-  const [confirm, setConfirm] = useState('')
-  const [working, setWorking] = useState(false)
-
-  async function submit(event: FormEvent) {
-    event.preventDefault()
-    if (state === 'setup' && first !== confirm) return
-    setWorking(true)
-    try { state === 'setup' ? await onCreate(first) : await onUnlock(first) } finally { setWorking(false) }
-  }
-
-  return <main className="vaultShell">
-    <section className="vaultCard panel">
-      <div className="vaultIcon">{state === 'setup' ? <LockKeyhole size={30} /> : <Lock size={30} />}</div>
-      <p className="eyebrow">iMOS ENCRYPTED PERSONAL VAULT</p>
-      <h1>{state === 'setup' ? 'Create your vault.' : 'Vault locked.'}</h1>
-      <p className="lead">{state === 'setup' ? 'Choose a strong passphrase. iMOS cannot recover it if it is lost.' : 'Enter your passphrase to restore your private operating context.'}</p>
-      <form className="vaultForm" onSubmit={submit}>
-        <label>PASSPHRASE<input autoFocus type="password" minLength={12} required value={first} onChange={(event) => setFirst(event.target.value)} autoComplete={state === 'setup' ? 'new-password' : 'current-password'} /></label>
-        {state === 'setup' && <label>CONFIRM PASSPHRASE<input type="password" minLength={12} required value={confirm} onChange={(event) => setConfirm(event.target.value)} autoComplete="new-password" /></label>}
-        {state === 'setup' && confirm && first !== confirm && <p className="formError">Passphrases do not match.</p>}
-        {error && <p className="formError">{error}</p>}
-        <button disabled={working || (state === 'setup' && first !== confirm)}>{state === 'setup' ? <LockKeyhole size={17} /> : <Unlock size={17} />}{working ? 'WORKING' : state === 'setup' ? 'CREATE VAULT' : 'UNLOCK VAULT'}</button>
-      </form>
-      <p className="vaultNotice">AES GCM encryption. PBKDF2 SHA 256. Local browser storage only. No ARGUS connection.</p>
-    </section>
-  </main>
-}
-
-function Arrival({ date, primary, onBegin }: { date: string; primary?: PersonalData['priorities'][number]; onBegin: () => void }) {
-  return <div className="hero"><p className="eyebrow">{date.toUpperCase()}</p><h2>Good morning, Rob.</h2><p className="lead">Your private operating context is unlocked and ready.</p><div className="rosie"><Sparkles size={18} /><div><strong>ROSIE</strong><p>{primary ? `I recommend beginning with ${primary.title}. ${primary.why}` : 'Your current priorities are complete. We can review commitments and decisions before choosing the next mission.'}</p></div></div><button onClick={onBegin}>BEGIN <ArrowRight size={17} /></button></div>
-}
-
-function Brief({ data, onAddCommitment, onAddDecision, onToggleCommitment, onToggleDecision, onBegin }: { data: PersonalData; onAddCommitment: (title: string, due: string) => void; onAddDecision: (title: string, context: string) => void; onToggleCommitment: (id: string) => void; onToggleDecision: (id: string) => void; onBegin: () => void }) {
-  const [capture, setCapture] = useState<'commitment' | 'decision' | null>(null)
-  const commitments = data.commitments.filter((item) => item.status === 'open').slice(0, 3)
-  const decisions = data.decisions.filter((item) => item.status === 'open').slice(0, 3)
-  const primary = data.priorities.find((item) => !item.completed)
-  return <div><p className="eyebrow">MORNING EXECUTIVE BRIEF</p><h2>Where we stand.</h2><div className="cards"><BriefCard label="PRIMARY MISSION" value={primary?.title ?? 'Define the next mission'} /><BriefCard label="COMMITMENTS" value={commitments.length ? `${commitments.length} require attention` : 'No critical risk'} /><BriefCard label="DECISIONS" value={decisions.length ? `${decisions.length} awaiting judgment` : 'No open decisions'} /><BriefCard label="VAULT" value="Encrypted and current" /></div><div className="recordGrid"><RecordList title="OPEN COMMITMENTS" items={commitments.map((item) => ({ id: item.id, title: item.title, meta: item.due || 'No due date' }))} onToggle={onToggleCommitment} /><RecordList title="OPEN DECISIONS" items={decisions.map((item) => ({ id: item.id, title: item.title, meta: item.context || 'No context added' }))} onToggle={onToggleDecision} /></div><div className="captureActions"><button className="secondaryButton" onClick={() => setCapture('commitment')}><Plus size={16} /> COMMITMENT</button><button className="secondaryButton" onClick={() => setCapture('decision')}><Plus size={16} /> DECISION</button></div>{capture === 'commitment' && <CommitmentForm onSave={(title, due) => { onAddCommitment(title, due); setCapture(null) }} onCancel={() => setCapture(null)} />}{capture === 'decision' && <DecisionForm onSave={(title, context) => { onAddDecision(title, context); setCapture(null) }} onCancel={() => setCapture(null)} />}<div className="recommendation"><strong>Rosie's recommendation</strong><p>Begin with one active priority. Your updates will be re encrypted automatically.</p></div><button onClick={onBegin}>ENTER FOCUS MODE <Focus size={17} /></button></div>
-}
-
-function FocusView({ primary, onCompletePriority, onComplete }: { primary?: PersonalData['priorities'][number]; onCompletePriority: () => void; onComplete: () => void }) {
-  return <div><p className="eyebrow">FOCUS MODE</p><h2>{primary?.title ?? 'Define the next mission.'}</h2><p className="lead">One outcome. No unrelated information.</p><div className="focusGrid"><BriefCard label="OUTCOME" value={primary?.title ?? 'Create one clear outcome'} /><BriefCard label="WHY IT MATTERS" value={primary?.why ?? 'Direction must be established before execution.'} /><BriefCard label="DATA BOUNDARY" value="Encrypted local vault" /><BriefCard label="ARGUS" value="No connection" /></div><div className="captureActions">{primary && <button className="secondaryButton" onClick={onCompletePriority}><CheckCircle2 size={17} /> MARK PRIORITY COMPLETE</button>}<button onClick={onComplete}>COMPLETE SESSION <ArrowRight size={17} /></button></div></div>
-}
-
-function Reflection({ onSave }: { onSave: (accomplished: string, remember: string, tomorrow: string) => void }) {
-  const [accomplished, setAccomplished] = useState(''); const [remember, setRemember] = useState(''); const [tomorrow, setTomorrow] = useState('')
-  return <div><p className="eyebrow">EXECUTIVE REFLECTION</p><h2>Close the loop.</h2><form className="reflectionForm" onSubmit={(event) => { event.preventDefault(); onSave(accomplished.trim(), remember.trim(), tomorrow.trim()) }}><label>WHAT DID WE ACCOMPLISH?<textarea value={accomplished} onChange={(event) => setAccomplished(event.target.value)} /></label><label>WHAT SHOULD ROSIE REMEMBER?<textarea value={remember} onChange={(event) => setRemember(event.target.value)} /></label><label>WHAT SHOULD HAPPEN TOMORROW?<textarea value={tomorrow} onChange={(event) => setTomorrow(event.target.value)} /></label><button type="submit">SAVE REFLECTION <CheckCircle2 size={17} /></button></form></div>
-}
-
-function CommitmentForm({ onSave, onCancel }: { onSave: (title: string, due: string) => void; onCancel: () => void }) { const [title, setTitle] = useState(''); const [due, setDue] = useState(''); return <form className="captureForm" onSubmit={(event) => { event.preventDefault(); if (title.trim()) onSave(title.trim(), due) }}><label>COMMITMENT<input autoFocus value={title} onChange={(event) => setTitle(event.target.value)} /></label><label>DUE<input type="date" value={due} onChange={(event) => setDue(event.target.value)} /></label><div className="captureActions"><button>SAVE</button><button type="button" className="secondaryButton" onClick={onCancel}>CANCEL</button></div></form> }
-function DecisionForm({ onSave, onCancel }: { onSave: (title: string, context: string) => void; onCancel: () => void }) { const [title, setTitle] = useState(''); const [context, setContext] = useState(''); return <form className="captureForm" onSubmit={(event) => { event.preventDefault(); if (title.trim()) onSave(title.trim(), context.trim()) }}><label>DECISION<input autoFocus value={title} onChange={(event) => setTitle(event.target.value)} /></label><label>CONTEXT<textarea value={context} onChange={(event) => setContext(event.target.value)} /></label><div className="captureActions"><button>SAVE</button><button type="button" className="secondaryButton" onClick={onCancel}>CANCEL</button></div></form> }
-function RecordList({ title, items, onToggle }: { title: string; items: { id: string; title: string; meta: string }[]; onToggle: (id: string) => void }) { return <section className="recordList"><p className="eyebrow">{title}</p>{items.length === 0 && <p className="emptyState">Nothing requires attention.</p>}{items.map((item) => <button key={item.id} className="recordRow" onClick={() => onToggle(item.id)}><span><strong>{item.title}</strong><small>{item.meta}</small></span><CheckCircle2 size={17} /></button>)}</section> }
-function BriefCard({ label, value }: { label: string; value: string }) { return <div className="briefCard"><span>{label}</span><strong>{value}</strong></div> }
-function TimelineItem({ entry }: { entry: TimelineEntry }) { const time = new Intl.DateTimeFormat('en-US', { hour: 'numeric', minute: '2-digit' }).format(new Date(entry.createdAt)); return <div className="timelineItem"><span className="time">{time}</span><div><strong>{entry.title}</strong><p>{entry.detail}</p></div></div> }
