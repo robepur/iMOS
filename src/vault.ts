@@ -37,9 +37,9 @@ function bytesToBase64(bytes: Uint8Array): string {
   return btoa(binary)
 }
 
-function base64ToBytes(value: string): Uint8Array {
+function base64ToBytes(value: string): Uint8Array<ArrayBuffer> {
   const binary = atob(value)
-  return Uint8Array.from(binary, (character) => character.charCodeAt(0))
+  return Uint8Array.from(binary, (character) => character.charCodeAt(0)) as Uint8Array<ArrayBuffer>
 }
 
 async function sha256(value: string): Promise<string> {
@@ -47,7 +47,7 @@ async function sha256(value: string): Promise<string> {
   return bytesToBase64(new Uint8Array(digest))
 }
 
-async function deriveKey(passphrase: string, salt: Uint8Array, iterations = ITERATIONS): Promise<CryptoKey> {
+async function deriveKey(passphrase: string, salt: Uint8Array<ArrayBuffer>, iterations = ITERATIONS): Promise<CryptoKey> {
   const material = await crypto.subtle.importKey('raw', new TextEncoder().encode(passphrase), 'PBKDF2', false, ['deriveKey'])
   return crypto.subtle.deriveKey(
     { name: 'PBKDF2', hash: 'SHA-256', salt, iterations },
