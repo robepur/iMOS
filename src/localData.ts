@@ -1,5 +1,7 @@
 export type PriorityLevel = 'critical' | 'high' | 'normal' | 'low'
 
+export type ReviewPeriod = 'today' | 'week' | 'month' | 'quarter' | 'all'
+
 export type Priority = {
   id: string
   title: string
@@ -39,7 +41,7 @@ export type Decision = {
 
 export type TimelineEntry = {
   id: string
-  type: 'priority' | 'commitment' | 'decision' | 'reflection' | 'system' | 'secret'
+  type: 'priority' | 'commitment' | 'decision' | 'reflection' | 'system' | 'secret' | 'recovery'
   title: string
   detail: string
   createdAt: string
@@ -102,9 +104,10 @@ export function normalizePersonalData(raw: PersonalData): PersonalData {
   return { ...raw, secrets: raw.secrets ?? [], priorities }
 }
 
-export function getRosieMemory(data: PersonalData): RosieMemoryItem[] {
+export function getRosieMemory(data: PersonalData, period?: ReviewPeriod): RosieMemoryItem[] {
+  const start = period ? getReviewPeriodStart(period) : null
   return data.reflections
-    .filter((r) => r.remember.trim().length > 0)
+    .filter((r) => r.remember.trim().length > 0 && (start === null || new Date(r.createdAt) >= start))
     .slice(0, 5)
     .map((r) => ({
       id: `memory-${r.id}`,
@@ -114,15 +117,31 @@ export function getRosieMemory(data: PersonalData): RosieMemoryItem[] {
     }))
 }
 
+export function getReviewPeriodStart(period: ReviewPeriod): Date {
+  const now = new Date()
+  switch (period) {
+    case 'today': return new Date(now.toDateString())
+    case 'week': return new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
+    case 'month': return new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
+    case 'quarter': return new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000)
+    default: return new Date(0)
+  }
+}
+
+export function inPeriod(isoDate: string, period: ReviewPeriod): boolean {
+  if (period === 'all') return true
+  return new Date(isoDate) >= getReviewPeriodStart(period)
+}
+
 export function createInitialData(): PersonalData {
   const createdAt = new Date().toISOString()
   return {
     version: 1,
     priorities: [
       {
-        id: 'priority-build-006',
-        title: 'Establish Build 006',
-        why: 'Extend priority management and activate Rosie Memory.',
+        id: 'priority-build-007',
+        title: 'Establish Build 007',
+        why: 'Activate operator intelligence, review system, and historical analysis.',
         level: 'high',
         due: '',
         completed: false,
@@ -138,10 +157,10 @@ export function createInitialData(): PersonalData {
     secrets: [],
     timeline: [
       {
-        id: 'system-build-006',
+        id: 'system-build-007',
         type: 'system',
-        title: 'Build 006 initialized',
-        detail: 'Priority Command and Rosie Memory are ready for activation.',
+        title: 'Build 007 initialized',
+        detail: 'Operator Intelligence and Review System is ready for activation.',
         createdAt
       }
     ]

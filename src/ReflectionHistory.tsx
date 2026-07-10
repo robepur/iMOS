@@ -4,7 +4,7 @@ import type { Reflection } from './localData'
 type Props = {
   reflections: Reflection[]
   onDelete: (id: string) => void
-  onClose: () => void
+  onClose?: () => void
 }
 
 export default function ReflectionHistory({ reflections, onDelete, onClose }: Props) {
@@ -16,16 +16,18 @@ export default function ReflectionHistory({ reflections, onDelete, onClose }: Pr
 
   return (
     <section className="reflectionHistory panel" aria-label="Reflection History">
-      <div className="recoveryHeader">
-        <div>
-          <p className="eyebrow">REFLECTION HISTORY</p>
-          <h2>Prior Reflections</h2>
-          <p>Review your executive reflection records. Newest first.</p>
+      {onClose && (
+        <div className="recoveryHeader">
+          <div>
+            <p className="eyebrow">REFLECTION HISTORY</p>
+            <h2>Prior Reflections</h2>
+            <p>Review your executive reflection records. Newest first.</p>
+          </div>
+          <button className="iconButton" onClick={onClose} aria-label="Close reflection history">
+            <X size={18} />
+          </button>
         </div>
-        <button className="iconButton" onClick={onClose} aria-label="Close reflection history">
-          <X size={18} />
-        </button>
-      </div>
+      )}
 
       {reflections.length === 0 && (
         <p className="emptyState" style={{ marginTop: '24px' }}>
