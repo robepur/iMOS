@@ -70,3 +70,72 @@ describe('Phase 3 migration — Build 013 safe defaults', () => {
     expect(twice.operatorUnderstandings).toHaveLength(once.operatorUnderstandings!.length)
   })
 })
+
+
+describe('Phase 3 migration — malformed state fails closed', () => {
+  it('replaces malformed enabled consent with the safe off default', () => {
+    const fixture = {
+      ...compatibilityVaults['build012'],
+      cognitionConsent: {
+        status: 'on',
+        version: '1.0.0',
+        purpose: 'corrupt',
+        updatedAt: 'invalid',
+        permittedDataCategories: 'all',
+        permittedFeatureSurfaces: [],
+        auditHistory: [],
+      },
+    }
+    const migrated = migrateToLatest(fixture as never)
+    expect(migrated.cognitionConsent!.status).toBe('off')
+    expect(migrated.cognitionConsent!.permittedDataCategories).toEqual([])
+  })
+
+  it('drops understandings with missing or inconsistent provenance', () => {
+    const fixture = {
+      ...compatibilityVaults['build012'],
+      operatorUnderstandings: [{
+        id: 'invalid-understanding',
+        statement: 'Unsupported claim',
+        evidenceIds: [],
+        ruleId: 'rule-a',
+        ruleVersion: '1.0.0',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        confidenceBasis: 'none',
+        state: 'operator_confirmed',
+        correctionHistory: [],
+        permittedFeatureUses: ['briefing'],
+        provenance: {
+          ruleId: 'different-rule',
+          ruleVersion: '1.0.0',
+          evidenceTypes: [],
+          generatedAt: new Date().toISOString(),
+          dataSource: 'local_vault',
+        },
+      }],
+    }
+    const migrated = migrateToLatest(fixture as never)
+    expect(migrated.operatorUnderstandings).toEqual([])
+  })
+
+  it('clears permissions from structurally invalid revoked consent', () => {
+    const fixture = {
+      ...compatibilityVaults['build012'],
+      cognitionConsent: {
+        status: 'revoked',
+        version: '1.0.0',
+        purpose: 'revoked',
+        updatedAt: new Date().toISOString(),
+        revokedAt: new Date().toISOString(),
+        permittedDataCategories: ['priorities'],
+        permittedFeatureSurfaces: ['briefing'],
+        auditHistory: [],
+      },
+    }
+    const migrated = migrateToLatest(fixture as never)
+    expect(migrated.cognitionConsent!.status).toBe('off')
+    expect(migrated.cognitionConsent!.permittedDataCategories).toEqual([])
+    expect(migrated.cognitionConsent!.permittedFeatureSurfaces).toEqual([])
+  })
+})
