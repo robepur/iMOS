@@ -1,3 +1,17 @@
+export type RosieRecommendation = {
+  id: string
+  category: 'priority' | 'commitment' | 'decision' | 'reflection' | 'review' | 'security'
+  severity: 'critical' | 'high' | 'normal' | 'low'
+  confidence: 'high' | 'medium' | 'low'
+  title: string
+  explanation: string
+  evidence: string[]
+  recommendedAction: string
+  createdAt: string
+  dismissed: boolean
+  snoozedUntil?: string
+}
+
 export type PriorityLevel = 'critical' | 'high' | 'normal' | 'low'
 
 export type ReviewPeriod = 'today' | 'week' | 'month' | 'quarter' | 'all'
@@ -77,6 +91,7 @@ export type PersonalData = {
   timeline: TimelineEntry[]
   reflections: Reflection[]
   secrets?: SecretRecord[]
+  recommendations?: RosieRecommendation[]
 }
 
 const VALID_LEVELS: PriorityLevel[] = ['critical', 'high', 'normal', 'low']
@@ -101,7 +116,7 @@ export function normalizePersonalData(raw: PersonalData): PersonalData {
     ...(p['completedAt'] ? { completedAt: String(p['completedAt']) } : {}),
   }))
 
-  return { ...raw, secrets: raw.secrets ?? [], priorities }
+  return { ...raw, secrets: raw.secrets ?? [], priorities, recommendations: raw.recommendations ?? [] }
 }
 
 export function getRosieMemory(data: PersonalData, period?: ReviewPeriod): RosieMemoryItem[] {
@@ -159,11 +174,12 @@ export function createInitialData(): PersonalData {
       {
         id: 'system-build-007',
         type: 'system',
-        title: 'Build 007 initialized',
-        detail: 'Operator Intelligence and Review System is ready for activation.',
+        title: 'Build 009 initialized',
+        detail: 'Rosie Cognitive Partner is active.',
         createdAt
       }
-    ]
+    ],
+    recommendations: [],
   }
 }
 

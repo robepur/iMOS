@@ -6,6 +6,7 @@ export type {
   ReviewPeriod,
   Priority,
   RosieMemoryItem,
+  RosieRecommendation,
   Commitment,
   Decision,
   TimelineEntry,

@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useState } from 'react'
-import type { Commitment, Decision, PersonalData, Priority, SecretRecord, TimelineEntry } from '../localData'
+import type { Commitment, Decision, PersonalData, Priority, RosieRecommendation, SecretRecord, TimelineEntry } from '../localData'
 import { createId, createInitialData, normalizePersonalData } from '../localData'
 import { VaultService } from '../services/VaultService'
 import { StorageService } from '../services/StorageService'
+import { buildDismissed, buildSnoozed } from './useRecommendations'
 
 export type VaultState = 'setup' | 'locked' | 'unlocked'
 
@@ -29,6 +30,8 @@ export type UseVaultReturn = {
   deleteReflection: (id: string) => void
   restoreVault: (backup: unknown, backupPassphrase: string) => Promise<void>
   rotateVaultPassphrase: (current: string, replacement: string) => Promise<void>
+  dismissRecommendation: (rec: RosieRecommendation) => void
+  snoozeRecommendation: (rec: RosieRecommendation, days: number) => void
 }
 
 export function useVault(): UseVaultReturn {
@@ -193,6 +196,22 @@ export function useVault(): UseVaultReturn {
     setPassphrase(replacement)
   }, [data])
 
+  const dismissRecommendation = useCallback((rec: RosieRecommendation) => {
+    setData((prev) => {
+      if (!prev) return prev
+      const existing = (prev.recommendations ?? []).filter((r) => r.id !== rec.id)
+      return { ...prev, recommendations: [...existing, buildDismissed(rec)] }
+    })
+  }, [])
+
+  const snoozeRecommendation = useCallback((rec: RosieRecommendation, days: number) => {
+    setData((prev) => {
+      if (!prev) return prev
+      const existing = (prev.recommendations ?? []).filter((r) => r.id !== rec.id)
+      return { ...prev, recommendations: [...existing, buildSnoozed(rec, days)] }
+    })
+  }, [])
+
   return {
     vaultState, data, passphrase, error, saving, setData,
     createVault, unlock, lock, reset,
@@ -200,5 +219,6 @@ export function useVault(): UseVaultReturn {
     addCommitment, addDecision, toggleCommitment, toggleDecision,
     completePrimaryPriority, saveReflection, deleteReflection,
     restoreVault, rotateVaultPassphrase,
+    dismissRecommendation, snoozeRecommendation,
   }
 }

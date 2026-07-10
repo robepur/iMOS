@@ -1,19 +1,21 @@
-﻿import { lazy, Suspense, useMemo, useState } from 'react'
-import { Clock3, Download, KeyRound, ListChecks, Lock, LockKeyhole, RotateCcw, ShieldCheck } from 'lucide-react'
+import { lazy, Suspense, useMemo, useState } from 'react'
+import { Clock3, KeyRound, ListChecks, Lock, LockKeyhole, ShieldCheck, Zap } from 'lucide-react'
 import { useVault } from './hooks/useVault'
 import { usePriorities } from './hooks/usePriorities'
 import { useSecrets } from './hooks/useSecrets'
-import { VaultService } from './services/VaultService'
+import { useRecommendations } from './hooks/useRecommendations'
+import { RosieEngine } from './services/RosieEngine'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import VaultGate from './features/vault/VaultGate'
+import DataPanel from './features/vault/DataPanel'
 import { Arrival, Brief, FocusView, Reflection, TimelineItem } from './features/arrival/OperatingLoop'
 import PriorityConsole from './features/priorities/PriorityConsole'
 
-// Lazy-loaded feature consoles
-const ReviewCenter     = lazy(() => import('./features/review/ReviewCenter'))
-const RecoveryConsole  = lazy(() => import('./features/recovery/RecoveryConsole'))
-const SecretsConsole   = lazy(() => import('./features/secrets/SecretsConsole'))
-const ReflectionHistory = lazy(() => import('./features/reflection/ReflectionHistory'))
+const ReviewCenter          = lazy(() => import('./features/review/ReviewCenter'))
+const RecoveryConsole       = lazy(() => import('./features/recovery/RecoveryConsole'))
+const SecretsConsole        = lazy(() => import('./features/secrets/SecretsConsole'))
+const ReflectionHistory     = lazy(() => import('./features/reflection/ReflectionHistory'))
+const RecommendationCenter  = lazy(() => import('./features/rosie/RecommendationCenter'))
 
 type Mode = 'arrival' | 'brief' | 'focus' | 'reflection'
 
@@ -21,14 +23,16 @@ export default function App() {
   const vault = useVault()
   const { activePriorities, primary, criticalCount, overdueCount } = usePriorities(vault.data)
   const secrets = useSecrets(vault.data)
+  const { active: recs, patterns, criticalCount: recCritical } = useRecommendations(vault.data)
 
   const [mode, setMode] = useState<Mode>('arrival')
-  const [showDataPanel, setShowDataPanel] = useState(false)
-  const [showRecovery, setShowRecovery] = useState(false)
-  const [showSecrets, setShowSecrets] = useState(false)
-  const [showPriorities, setShowPriorities] = useState(false)
+  const [showDataPanel, setShowDataPanel]     = useState(false)
+  const [showRecovery, setShowRecovery]       = useState(false)
+  const [showSecrets, setShowSecrets]         = useState(false)
+  const [showPriorities, setShowPriorities]   = useState(false)
   const [showReflections, setShowReflections] = useState(false)
-  const [showReview, setShowReview] = useState(false)
+  const [showReview, setShowReview]           = useState(false)
+  const [showRosie, setShowRosie]             = useState(false)
 
   const date = useMemo(() => new Intl.DateTimeFormat('en-US', { weekday: 'long', month: 'long', day: 'numeric' }).format(new Date()), [])
 
@@ -37,20 +41,16 @@ export default function App() {
   }
 
   const { data } = vault
+  const healthSignals = RosieEngine.getHealthSignals(data)
   const openCommitments = data.commitments.filter((c) => c.status === 'open').length
-  const openDecisions = data.decisions.filter((d) => d.status === 'open').length
 
   const stateItems = [
     ['Executive State', mode === 'focus' ? 'Focused' : 'Aware'],
     ['Vault', vault.saving ? 'Securing' : 'Encrypted'],
     ['Priorities', criticalCount ? `${criticalCount} Critical` : activePriorities.length ? `${activePriorities.length} Active` : 'Clear'],
     ['Commitments', openCommitments ? `${openCommitments} Open` : 'On Track'],
+    ['Rosie', recCritical > 0 ? `${recCritical} Critical` : recs.length > 0 ? `${recs.length} Recs` : 'Clear'],
   ]
-
-  function handleReflectionSave(a: string, r: string, t: string) {
-    vault.saveReflection(a, r, t)
-    setMode('arrival')
-  }
 
   return (
     <main className="shell">
@@ -58,6 +58,9 @@ export default function App() {
         <div><p className="eyebrow">INDIVIDUAL MISSION OPERATING SYSTEM</p><h1>iMOS</h1></div>
         <div className="topActions">
           <button className="utilityButton" onClick={() => setShowReview(true)}><ShieldCheck size={16} /> REVIEW</button>
+          <button className={`utilityButton${recs.length > 0 ? ' utilityButton--alert' : ''}`} onClick={() => setShowRosie(true)}>
+            <Zap size={16} /> ROSIE{recs.length > 0 ? ` (${recs.length})` : ''}
+          </button>
           <button className="utilityButton" onClick={() => setShowPriorities(true)}><ListChecks size={16} /> PRIORITIES</button>
           <button className="utilityButton" onClick={() => setShowSecrets(true)}><KeyRound size={16} /> SECRETS</button>
           <button className="utilityButton" onClick={() => setShowDataPanel((v) => !v)}><LockKeyhole size={16} /> VAULT</button>
@@ -66,16 +69,7 @@ export default function App() {
         </div>
       </header>
 
-      {showDataPanel && (
-        <section className="dataPanel panel">
-          <div><p className="eyebrow">BUILD 008 VAULT CONTROL</p><h3>Encrypted. Recoverable. Controlled.</h3><p>All operator data remains inside the encrypted personal vault.</p></div>
-          <div className="dataActions">
-            <button className="secondaryButton" onClick={() => void VaultService.exportBackup()}><Download size={16} /> BACKUP</button>
-            <button className="secondaryButton" onClick={() => { setShowDataPanel(false); setShowRecovery(true) }}><ShieldCheck size={16} /> RECOVERY</button>
-            <button className="dangerButton" onClick={vault.reset}><RotateCcw size={16} /> ERASE</button>
-          </div>
-        </section>
-      )}
+      {showDataPanel && <DataPanel onClose={() => setShowDataPanel(false)} onOpenRecovery={() => setShowRecovery(true)} onReset={vault.reset} />}
 
       <ErrorBoundary>
         <Suspense fallback={null}>
@@ -84,6 +78,7 @@ export default function App() {
           {showRecovery && <RecoveryConsole onClose={() => setShowRecovery(false)} onRestore={vault.restoreVault} onRotate={vault.rotateVaultPassphrase} />}
           {showReflections && <ReflectionHistory reflections={data.reflections} onDelete={vault.deleteReflection} onClose={() => setShowReflections(false)} />}
           {showReview && <ReviewCenter data={data} onDeleteReflection={vault.deleteReflection} onClose={() => setShowReview(false)} />}
+          {showRosie && <RecommendationCenter recs={recs} patterns={patterns} healthSignals={healthSignals} onDismiss={vault.dismissRecommendation} onSnooze={vault.snoozeRecommendation} onClose={() => setShowRosie(false)} />}
         </Suspense>
       </ErrorBoundary>
 
@@ -94,7 +89,7 @@ export default function App() {
           {mode === 'arrival' && <Arrival date={date} data={data} primary={primary} onBegin={() => setMode('brief')} />}
           {mode === 'brief' && <Brief data={data} overdueCount={overdueCount} criticalCount={criticalCount} secretCount={secrets.count} onAddCommitment={vault.addCommitment} onAddDecision={vault.addDecision} onToggleCommitment={vault.toggleCommitment} onToggleDecision={vault.toggleDecision} onOpenPriorities={() => setShowPriorities(true)} onOpenReflectionHistory={() => setShowReflections(true)} onBegin={() => setMode('focus')} />}
           {mode === 'focus' && <FocusView primary={primary} onCompletePriority={() => primary && vault.completePrimaryPriority(primary)} onComplete={() => setMode('reflection')} />}
-          {mode === 'reflection' && <Reflection onSave={handleReflectionSave} />}
+          {mode === 'reflection' && <Reflection onSave={(a, r, t) => { vault.saveReflection(a, r, t); setMode('arrival') }} />}
         </div>
         <aside className="timeline panel">
           <div className="panelTitle"><Clock3 size={17} /><span>EXECUTIVE TIMELINE</span></div>
