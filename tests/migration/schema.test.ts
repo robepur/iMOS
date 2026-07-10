@@ -47,4 +47,14 @@ describe('migrateToLatest', () => {
     expect(p.primary).toBe(true)
     expect(typeof p.order).toBe('number')
   })
+
+  it('adds missing mission fields for legacy vaults', () => {
+    const input = {
+      version: 1,
+      priorities: [], commitments: [], decisions: [], timeline: [], reflections: [], secrets: [],
+    }
+    const result = migrateToLatest(input)
+    expect(result.missionPlans).toEqual([])
+    expect(result.missionSteps).toEqual([])
+  })
 })
