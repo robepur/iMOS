@@ -20,4 +20,12 @@ describe('Network boundary security scan', () => {
     expect(source.includes('class')).toBe(false)
     expect(source.includes('new URL(')).toBe(false)
   })
+
+  it('Build 018 identity service does not expose private-key export paths', () => {
+    const root = path.resolve(__dirname, '../..')
+    const source = fs.readFileSync(path.join(root, 'src/services/DeviceIdentityService.ts'), 'utf8')
+    expect(source.includes('exportKey(\'pkcs8\'')).toBe(false)
+    expect(source.includes('exportKey("pkcs8"')).toBe(false)
+    expect(source.includes('privateKeyLeak')).toBe(false)
+  })
 })
