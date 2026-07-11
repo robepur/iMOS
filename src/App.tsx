@@ -57,9 +57,25 @@ export default function App() {
   useEffect(() => {
     if (!vault.data) return
     const consent = vault.data.cognitionConsent
-    if (!isCognitionEnabled(consent)) return
-    // Debounce: only re-analyze when data identity changes
-    const dataKey = JSON.stringify({ p: vault.data.priorities.length, c: vault.data.commitments.length, d: vault.data.decisions.length })
+    if (!isCognitionEnabled(consent)) {
+      lastSignalAnalysis.current = null
+      return
+    }
+    // Deterministic fingerprint of every approved Build 014 input. Cognitive
+    // signal persistence is intentionally excluded to prevent save loops.
+    const dataKey = JSON.stringify({
+      consent: {
+        status: consent.status,
+        updatedAt: consent.updatedAt,
+        categories: consent.permittedDataCategories,
+        surfaces: consent.permittedFeatureSurfaces,
+      },
+      commitments: vault.data.commitments.map((item) => [item.id, item.status, item.due]),
+      decisions: vault.data.decisions.map((item) => [item.id, item.status, item.updatedAt, item.createdAt]),
+      reflections: vault.data.reflections.map((item) => [item.id, item.createdAt]),
+      recommendations: (vault.data.recommendations ?? []).map((item) => [item.id, item.dismissed, item.createdAt]),
+      missions: (vault.data.missionPlans ?? []).map((item) => [item.id, item.status, item.updatedAt, item.createdAt]),
+    })
     if (lastSignalAnalysis.current === dataKey) return
     lastSignalAnalysis.current = dataKey
     const result = analyzeSignals(vault.data, consent)
