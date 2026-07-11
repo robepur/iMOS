@@ -718,7 +718,7 @@ export function useVault(): UseVaultReturn {
       if (!prev || !canMutateUnderstandingReview(prev)) return prev
       return {
         ...prev,
-        operatorUnderstandings: confirmUnderstandingReview(prev.operatorUnderstandings ?? [], understandingId),
+        operatorUnderstandings: confirmUnderstandingReview(prev.operatorUnderstandings ?? [], understandingId, undefined, prev.cognitionConsent),
       }
     })
   }, [])
@@ -733,6 +733,8 @@ export function useVault(): UseVaultReturn {
           understandingId,
           correctedStatement,
           reason,
+          undefined,
+          prev.cognitionConsent,
         ),
       }
     })
@@ -746,6 +748,8 @@ export function useVault(): UseVaultReturn {
         understandingId,
         prev.rejectedUnderstandingSignatures ?? [],
         reason,
+        undefined,
+        prev.cognitionConsent,
       )
       return {
         ...prev,
@@ -760,7 +764,7 @@ export function useVault(): UseVaultReturn {
       if (!prev || !canMutateUnderstandingReview(prev)) return prev
       return {
         ...prev,
-        operatorUnderstandings: expireUnderstandingReview(prev.operatorUnderstandings ?? [], understandingId),
+        operatorUnderstandings: expireUnderstandingReview(prev.operatorUnderstandings ?? [], understandingId, undefined, prev.cognitionConsent),
       }
     })
   }, [])
@@ -770,7 +774,7 @@ export function useVault(): UseVaultReturn {
       if (!prev || !canMutateUnderstandingReview(prev)) return prev
       return {
         ...prev,
-        cognitiveSignals: suppressReviewSourceSignal(prev.cognitiveSignals ?? [], signalId),
+        cognitiveSignals: suppressReviewSourceSignal(prev.cognitiveSignals ?? [], signalId, undefined, prev.cognitionConsent),
       }
     })
   }, [])
