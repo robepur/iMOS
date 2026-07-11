@@ -114,6 +114,7 @@ export type UseVaultReturn = {
   savePresentationOverrides: (overrides: PresentationOverride[]) => void
   removePresentationOverride: (overrideId: string) => void
   restoreNeutralPresentation: () => void
+  saveOrchestrationResult: (data: PersonalData) => void
 }
 
 function timelineSignature(entry: Omit<TimelineEntry, 'id' | 'createdAt'>): string {
@@ -869,6 +870,10 @@ export function useVault(): UseVaultReturn {
     })
   }, [])
 
+  const saveOrchestrationResult = useCallback((result: PersonalData) => {
+    setData(result)
+  }, [])
+
   return {
     vaultState, data, passphrase, error, saving, setData,
     createVault, unlock, lock, reset,
@@ -895,5 +900,6 @@ export function useVault(): UseVaultReturn {
     savePresentationOverrides,
     removePresentationOverride,
     restoreNeutralPresentation,
+    saveOrchestrationResult,
   }
 }

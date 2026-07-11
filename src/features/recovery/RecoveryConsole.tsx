@@ -1,11 +1,13 @@
-﻿import { useState } from 'react'
+import { useState } from 'react'
 import { FileCheck2, FlaskConical, KeyRound, ShieldCheck, Upload, X } from 'lucide-react'
-import { getRecoveryAudit, restoreBackup, rotatePassphrase, testRecovery, verifyBackupPackage } from '../../vault'
+import type { PersonalData } from '../../localData'
+import { getRecoveryAudit, testRecovery, verifyBackupPackage } from '../../vault'
 
 type RecoveryAction = 'verify' | 'test' | 'restore' | 'rotate' | null
 type RecoveryStatus = { tone: 'success' | 'error' | 'neutral'; title: string; detail: string }
 
-export default function RecoveryConsole({ onClose, onRestore, onRotate }: {
+export default function RecoveryConsole({ data, onClose, onRestore, onRotate }: {
+  data: PersonalData
   onClose: () => void
   onRestore: (backup: unknown, passphrase: string) => Promise<void>
   onRotate: (current: string, replacement: string) => Promise<void>
@@ -19,7 +21,7 @@ export default function RecoveryConsole({ onClose, onRestore, onRotate }: {
   const [confirmPassphrase, setConfirmPassphrase] = useState('')
   const [working, setWorking] = useState(false)
   const [status, setStatus] = useState<RecoveryStatus>({ tone: 'neutral', title: 'Recovery ready', detail: 'Select an action to begin.' })
-  const audit = getRecoveryAudit().slice(0, 4)
+  const audit = getRecoveryAudit(data).slice(0, 4)
 
   async function selectBackup(file: File | undefined) {
     if (!file) return
@@ -151,5 +153,3 @@ export default function RecoveryConsole({ onClose, onRestore, onRotate }: {
     </section>
   )
 }
-
-

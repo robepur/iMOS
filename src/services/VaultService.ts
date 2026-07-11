@@ -15,6 +15,7 @@ import {
   encryptVault,
   decryptEnvelope,
   getRecoveryAudit,
+  migrateLegacyRecoveryAudit,
 } from '../vault'
 import { StorageService } from './StorageService'
 import { migrateToLatest } from '../SchemaVersion'
@@ -28,7 +29,7 @@ export const VaultService = {
   /** Decrypt and return the active vault. Applies schema migration. */
   async unlock(passphrase: string): Promise<PersonalData> {
     const raw = await unlockVault(passphrase)
-    return migrateToLatest(raw)
+    return migrateToLatest(migrateLegacyRecoveryAudit(raw))
   },
 
   /** Create a new vault from initial data. */

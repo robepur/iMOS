@@ -6,7 +6,7 @@
 
 import { STORAGE_KEYS } from '../constants'
 import type { PersonalData } from '../localData'
-import type { RecoveryAuditEvent } from '../vault'
+import type { RecoveryAuditEvent } from '../types/recovery'
 
 export const StorageService = {
   vaultExists(): boolean {

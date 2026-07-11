@@ -12,7 +12,7 @@
 
 import type { DeterministicRule } from '../types/cognitive'
 
-export const REGISTRY_VERSION = '1.0.0'
+export const REGISTRY_VERSION = '1.1.0'
 
 export const RULE_REGISTRY: DeterministicRule[] = [
   {
@@ -117,6 +117,58 @@ export const RULE_REGISTRY: DeterministicRule[] = [
     plainLanguageTemplate: 'Operator has consistently used {detail} evidence depth across {count} interactions.',
     prohibitedInferenceNote:
       'Must not infer analytical style, thoroughness, or expertise. Observes explicit evidence panel interaction choices only. Returns no signal in Build 014.',
+  },
+  {
+    ruleId: 'repeated_decision_reopening',
+    ruleVersion: '1.1.0',
+    purpose: 'Detect decisions that remain open within the observation window.',
+    permittedInputCategories: ['decisions'],
+    minimumEvidenceCount: 2,
+    observationWindowDays: 90,
+    outputSignalType: 'repeated_decision_reopening',
+    expirationDays: 30,
+    permittedFeatureSurfaces: ['rosie_recommendations', 'review_center', 'morning_brief'],
+    plainLanguageTemplate: 'Multiple decisions remain open within the observation window.',
+    prohibitedInferenceNote: 'Must not infer indecisiveness, anxiety, emotion, or intent. Observes only that decisions have open status within the window.',
+  },
+  {
+    ruleId: 'overdue_commitment_recurrence',
+    ruleVersion: '1.1.0',
+    purpose: 'Detect commitments that are currently overdue within the observation window.',
+    permittedInputCategories: ['commitments'],
+    minimumEvidenceCount: 3,
+    observationWindowDays: 90,
+    outputSignalType: 'overdue_commitment_recurrence',
+    expirationDays: 30,
+    permittedFeatureSurfaces: ['rosie_recommendations', 'review_center', 'morning_brief'],
+    plainLanguageTemplate: 'Multiple commitments are currently overdue within the observation window.',
+    prohibitedInferenceNote: 'Must not infer capability, motivation, stress, or personality. Observes current overdue status within the window only.',
+  },
+  {
+    ruleId: 'mission_completion_sequence',
+    ruleVersion: '1.1.0',
+    purpose: 'Detect mission sequences observed within the window.',
+    permittedInputCategories: ['missions'],
+    minimumEvidenceCount: 2,
+    observationWindowDays: 60,
+    outputSignalType: 'mission_completion_sequence',
+    expirationDays: 30,
+    permittedFeatureSurfaces: ['mission_planning', 'review_center'],
+    plainLanguageTemplate: '{count} mission sequences observed in the last {windowDays} days.',
+    prohibitedInferenceNote: 'Must not infer motivation, confidence, capability, or sequence preference. Observes mission record presence only.',
+  },
+  {
+    ruleId: 'review_timing_preference',
+    ruleVersion: '1.1.0',
+    purpose: 'Observe review actions within the window without inferring timing preferences.',
+    permittedInputCategories: ['decisions', 'reflections', 'review_history'],
+    minimumEvidenceCount: 5,
+    observationWindowDays: 60,
+    outputSignalType: 'review_timing_preference',
+    expirationDays: 45,
+    permittedFeatureSurfaces: ['review_center', 'morning_brief', 'evening_summary'],
+    plainLanguageTemplate: '{count} review actions observed in the last {windowDays} days.',
+    prohibitedInferenceNote: 'Must not infer schedule preferences, morning/evening patterns, sleep habits, or work habits. Observes timestamp count only.',
   },
 ]
 

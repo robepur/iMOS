@@ -5,11 +5,19 @@ const root = process.cwd()
 const srcDir = path.join(root, 'src')
 
 const blockedPatterns = [
-  { label: 'fetch', regex: /\bfetch\s*\(/ },
-  { label: 'XMLHttpRequest', regex: /\bXMLHttpRequest\b/ },
-  { label: 'axios', regex: /\baxios\b/ },
-  { label: 'WebSocket', regex: /\bWebSocket\b/ },
-  { label: 'EventSource', regex: /\bEventSource\b/ },
+  { label: 'fetch', regex: /fetch\s*\(/ },
+  { label: 'XMLHttpRequest', regex: /XMLHttpRequest/ },
+  { label: 'axios', regex: /axios/ },
+  { label: 'WebSocket', regex: /WebSocket/ },
+  { label: 'EventSource', regex: /EventSource/ },
+  { label: 'navigator.sendBeacon', regex: /navigator\.sendBeacon/ },
+  { label: 'RTCPeerConnection', regex: /RTCPeerConnection/ },
+  { label: 'WebTransport', regex: /WebTransport/ },
+  { label: 'external Worker URL', regex: /new\s+Worker\s*\(\s*['"`]https?:\/\// },
+  { label: 'SharedWorker', regex: /SharedWorker/ },
+  { label: 'serviceWorker.register', regex: /\.serviceWorker\.register/ },
+  { label: 'external script injection', regex: /createElement\s*\(\s*['"`]script['"`]\s*\)/ },
+  { label: 'dynamic import from remote', regex: /import\s*\(\s*['"`]https?:\/\// },
 ]
 
 function walk(dir) {
