@@ -584,6 +584,44 @@ export async function signProofOfPossession(
   }
 }
 
+export async function signDevicePayload(
+  privateHandle: LocalDevicePrivateHandle,
+  payload: unknown,
+  options?: { store?: DevicePrivateKeyStore },
+): Promise<string> {
+  const record = await resolveHandleRecord(privateHandle, options?.store)
+  if (!record) throw new Error('Private key handle could not be resolved.')
+  if (record.deviceId !== privateHandle.deviceId) throw new Error('Private key binding mismatch.')
+  const signature = await crypto.subtle.sign(
+    { name: 'ECDSA', hash: 'SHA-256' },
+    record.privateKey,
+    canonicalizeUtf8(payload),
+  )
+  return bytesToBase64(new Uint8Array(signature))
+}
+
+export async function verifyDevicePayloadSignature(
+  publicIdentity: DevicePublicIdentity,
+  payload: unknown,
+  signature: string,
+): Promise<DeviceIdentityValidationResult> {
+  if (!publicIdentity?.publicSigningKeySpki || typeof signature !== 'string' || signature.length === 0) {
+    return { valid: false, reason: 'signature_invalid' }
+  }
+  try {
+    const verifyKey = await importPublicVerifyKey(publicIdentity.publicSigningKeySpki)
+    const ok = await crypto.subtle.verify(
+      { name: 'ECDSA', hash: 'SHA-256' },
+      verifyKey,
+      base64ToBytes(signature),
+      canonicalizeUtf8(payload),
+    )
+    return ok ? { valid: true } : { valid: false, reason: 'signature_invalid' }
+  } catch {
+    return { valid: false, reason: 'proof_verification_failed' }
+  }
+}
+
 export async function verifyProofOfPossession(input: {
   challenge: ProofChallenge
   proof: ProofOfPossession
@@ -637,4 +675,3 @@ export async function verifyProofOfPossession(input: {
   }
   return { valid: true }
 }
-

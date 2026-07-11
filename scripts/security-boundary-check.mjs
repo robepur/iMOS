@@ -26,6 +26,13 @@ const blockedPatterns = [
   { label: 'remote location redirect', regex: /\b(?:window\.)?location(?:\.href)?\s*=\s*['"\x60]https?:\/\// },
 ]
 
+const allowedExceptions = [
+  {
+    label: 'fetch',
+    relativePath: 'src/services/SyncTransportAdapter.ts',
+  },
+]
+
 function walk(dir) {
   const entries = fs.readdirSync(dir, { withFileTypes: true })
   const files = []
@@ -41,8 +48,14 @@ function walk(dir) {
 const violations = []
 for (const file of walk(srcDir)) {
   const source = fs.readFileSync(file, 'utf8')
+  const relativeFile = path.relative(root, file).replace(/\\/g, '/')
   for (const pattern of blockedPatterns) {
-    if (pattern.regex.test(source)) violations.push(pattern.label + ' in ' + path.relative(root, file))
+    if (!pattern.regex.test(source)) continue
+    const allowed = allowedExceptions.some((exception) => (
+      exception.label === pattern.label
+      && exception.relativePath === relativeFile
+    ))
+    if (!allowed) violations.push(pattern.label + ' in ' + relativeFile)
   }
 }
 

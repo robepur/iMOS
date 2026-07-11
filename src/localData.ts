@@ -13,6 +13,7 @@ import type {
   PresentationProfile,
 } from './types/presentation'
 import type { RecoveryAuditEvent } from './types/recovery'
+import type { SyncOperatorControlState, SyncQuarantineRecord } from './types/sync'
 
 export type RosieRecommendation = {
   id: string
@@ -207,6 +208,10 @@ export type PersonalData = {
   presentationAdaptationAudit?: PresentationAdaptationAuditEvent[]
   /** Phase 3 Build 016: mapping registry version used for resolved profile. */
   presentationMappingRegistryVersion?: string
+  /** Phase 4 Build 019: operator-controlled local test sync transport state. */
+  syncOperatorControlState?: SyncOperatorControlState
+  /** Phase 4 Build 019: quarantined remote envelopes. */
+  syncQuarantine?: SyncQuarantineRecord[]
   recoveryAudit?: RecoveryAuditEvent[]
 }
 
@@ -360,6 +365,37 @@ function createDefaultPresentationProfile(): PresentationProfile {
     operatorOverrides: [],
     explanations: [],
     validationState: 'neutral',
+  }
+
+  function createDefaultSyncOperatorControlState(): SyncOperatorControlState {
+    return {
+      enabled: false,
+      localEndpointConfigured: false,
+    }
+  }
+
+  function isSafeSyncOperatorControlState(value: unknown): value is SyncOperatorControlState {
+    if (!value || typeof value !== 'object') return false
+    const state = value as Partial<SyncOperatorControlState>
+    return (
+      typeof state.enabled === 'boolean'
+      && typeof state.localEndpointConfigured === 'boolean'
+      && (state.configuredAt === undefined || typeof state.configuredAt === 'string')
+    )
+  }
+
+  function isSafeSyncQuarantineRecord(value: unknown): value is SyncQuarantineRecord {
+    if (!value || typeof value !== 'object') return false
+    const record = value as Partial<SyncQuarantineRecord>
+    return (
+      typeof record.id === 'string'
+      && typeof record.reason === 'string'
+      && typeof record.requestId === 'string'
+      && typeof record.namespace === 'string'
+      && typeof record.objectId === 'string'
+      && typeof record.createdAt === 'string'
+      && typeof record.detail === 'string'
+    )
   }
 }
 
@@ -545,6 +581,12 @@ export function normalizePersonalData(raw: PersonalData): PersonalData {
     presentationMappingRegistryVersion: typeof raw.presentationMappingRegistryVersion === 'string'
       ? raw.presentationMappingRegistryVersion
       : undefined,
+    syncOperatorControlState: isSafeSyncOperatorControlState(raw.syncOperatorControlState)
+      ? raw.syncOperatorControlState
+      : createDefaultSyncOperatorControlState(),
+    syncQuarantine: Array.isArray(raw.syncQuarantine)
+      ? raw.syncQuarantine.filter(isSafeSyncQuarantineRecord).slice(0, 500)
+      : [],
     recoveryAudit: Array.isArray(raw.recoveryAudit)
       ? raw.recoveryAudit
           .filter((event): event is RecoveryAuditEvent => Boolean(
@@ -669,6 +711,8 @@ export function createInitialData(): PersonalData {
     presentationProfile: createDefaultPresentationProfile(),
     presentationOverrides: [],
     presentationAdaptationAudit: [],
+    syncOperatorControlState: createDefaultSyncOperatorControlState(),
+    syncQuarantine: [],
     recoveryAudit: [],
   }
 }
