@@ -51,3 +51,35 @@ describe('RosieOrchestrationService', () => {
     expect(result2.changed).toBe(false)
   })
 })
+
+
+it('restores neutral presentation and disables personalization when cognition consent is off', () => {
+  const base = normalizePersonalData(createInitialData())
+  const data = {
+    ...base,
+    presentationPersonalizationEnabled: true,
+    presentationProfile: {
+      ...base.presentationProfile!,
+      validationState: 'adaptive' as const,
+      activeAdaptations: [{
+        adaptationId: 'a1',
+        mappingId: 'm1',
+        mappingVersion: '1',
+        sourceUnderstandingId: 'u1',
+        sourceRuleId: 'summary_vs_detail_preference',
+        sourceRuleVersion: '1.0.0',
+        targetSurface: 'briefing' as const,
+        setting: 'summaryDetailMode' as const,
+        value: 'detail_first',
+        reason: 'test',
+        activatedAt: now.toISOString(),
+      }],
+    },
+  }
+  const result = runRosieOrchestration({ data, now })
+  expect(result.blocked).toBe(true)
+  expect(result.changed).toBe(true)
+  expect(result.data.presentationPersonalizationEnabled).toBe(false)
+  expect(result.data.presentationProfile?.validationState).toBe('neutral')
+  expect(result.data.presentationProfile?.activeAdaptations).toHaveLength(0)
+})
