@@ -316,7 +316,13 @@ export function useVault(): UseVaultReturn {
     if (!data) return
     await VaultService.rotatePassphrase(data, current, replacement)
     setPassphrase(replacement)
-  }, [data])
+    recordRecoveryAuditEvent({
+      id: createId('recovery-audit'),
+      type: 'passphrase-rotated',
+      createdAt: new Date().toISOString(),
+      detail: 'Vault re encrypted and verified with new passphrase material.',
+    })
+  }, [data, recordRecoveryAuditEvent])
 
   const dismissRecommendation = useCallback((rec: RosieRecommendation) => {
     setData((prev) => {
