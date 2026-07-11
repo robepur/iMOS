@@ -8,7 +8,6 @@ import { useKnowledgeGraph } from './hooks/useKnowledgeGraph'
 import { useUnderstanding } from './hooks/useUnderstanding'
 import { RosieEngine } from './services/RosieEngine'
 import { UnderstandingEngine } from './services/UnderstandingEngine'
-import { isCognitionEnabled } from './services/CognitionConsentService'
 import {
   applyOperatorOverride,
   buildNeutralRestorationAudit,
