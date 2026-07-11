@@ -12,6 +12,7 @@ import { createProposedUnderstanding } from './UnderstandingReviewService'
 import {
   resolvePresentationProfile,
   PRESENTATION_MAPPING_REGISTRY_VERSION,
+  getNeutralPresentationProfile,
 } from './AdaptivePresentationEngine'
 
 // Compare profiles excluding the generatedAt timestamp (which is non-deterministic)
@@ -41,7 +42,23 @@ export function runRosieOrchestration(input: OrchestrationInput): OrchestrationR
   let changed = false
 
   if (!isCognitionEnabled(consent)) {
-    return { data, changed: false, blocked: true, blockReason: 'Cognition consent is not enabled.' }
+    const mustRestoreNeutral =
+      data.presentationPersonalizationEnabled === true
+      || data.presentationProfile?.validationState === 'adaptive'
+      || (data.presentationProfile?.activeAdaptations?.length ?? 0) > 0
+    if (!mustRestoreNeutral) {
+      return { data, changed: false, blocked: true, blockReason: 'Cognition consent is not enabled.' }
+    }
+    return {
+      data: {
+        ...data,
+        presentationPersonalizationEnabled: false,
+        presentationProfile: getNeutralPresentationProfile(),
+      },
+      changed: true,
+      blocked: true,
+      blockReason: 'Cognition consent is not enabled. Neutral presentation restored.',
+    }
   }
 
   const signalResult = analyzeSignals(candidate, consent, now)
@@ -70,6 +87,7 @@ export function runRosieOrchestration(input: OrchestrationInput): OrchestrationR
       existingUnderstandings: understandings,
       rejectedSignatures,
       reviewAudit,
+      now,
     })
     understandings = conversion.understandings
     rejectedSignatures = conversion.rejectedSignatures
