@@ -49,13 +49,12 @@ function buildMaterialEvidenceSignature(input: {
   ruleVersion: string
   signalType: string
   evidenceIds: string[]
-  observationWindowStart: string
-  observationWindowEnd: string
-  statement: string
-}): string {
+ }): string {
   const evidence = [...input.evidenceIds].map(String).sort().join(',')
-  const statement = input.statement.trim().toLowerCase().replace(/\s+/g, ' ')
-  return `${input.ruleId}|${input.ruleVersion}|${input.signalType}|${evidence}|${input.observationWindowStart}|${input.observationWindowEnd}|${statement}`
+  // Rejection and duplicate identity intentionally excludes timestamps and
+  // wording. Unchanged evidence must not reappear merely because a new
+  // analysis window or generated sentence changed.
+  return `${input.ruleId}|${input.ruleVersion}|${input.signalType}|${evidence}`
 }
 
 function appendEvent(
@@ -103,6 +102,17 @@ export function validateSourceSignal(
   }
   if (!signal.provenance || !signal.provenance.deterministicRuleId || !signal.provenance.ruleVersion) {
     return { valid: false, reason: 'Signal provenance is incomplete.' }
+  }
+  if (
+    signal.provenance.deterministicRuleId !== signal.deterministicRuleId
+    || signal.provenance.ruleVersion !== signal.deterministicRuleVersion
+  ) {
+    return { valid: false, reason: 'Signal provenance does not match its deterministic rule.' }
+  }
+  const evidence = [...signal.evidenceIds].map(String).sort()
+  const provenanceEvidence = [...signal.provenance.evidenceIds].map(String).sort()
+  if (signal.evidenceCount !== evidence.length || JSON.stringify(evidence) !== JSON.stringify(provenanceEvidence)) {
+    return { valid: false, reason: 'Signal evidence and provenance are inconsistent.' }
   }
   if (!isDataCategoryPermitted(consent, signal.dataCategory)) {
     return { valid: false, reason: `Data category ${signal.dataCategory} is not permitted.` }
@@ -184,9 +194,6 @@ export function createProposedUnderstanding(params: {
     ruleVersion: params.signal.deterministicRuleVersion,
     signalType: params.signal.signalType,
     evidenceIds: params.signal.evidenceIds,
-    observationWindowStart: params.signal.observationWindowStart,
-    observationWindowEnd: params.signal.observationWindowEnd,
-    statement: params.signal.plainLanguageStatement,
   })
 
   if (params.rejectedSignatures.includes(signature)) {
