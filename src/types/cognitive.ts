@@ -33,6 +33,12 @@ export type CognitionFeatureSurface =
   | 'missions'
   | 'recommendations'
   | 'understanding_dashboard'
+  // Build 014 additional surfaces
+  | 'rosie_recommendations'
+  | 'review_center'
+  | 'morning_brief'
+  | 'evening_summary'
+  | 'mission_planning'
 
 /** Recorded action on the operator's cognition consent. */
 export type CognitionConsentAction =
@@ -218,4 +224,127 @@ export type Phase3ConsentState = {
   cognitionConsent: CognitionConsent
   cloudSyncConsentDeclaration: CloudSyncConsentDeclaration
   connectorConsentDeclarations: ConnectorConsentDeclaration[]
+}
+
+// ---------------------------------------------------------------------------
+// Build 014: Cognitive Signal types
+// ---------------------------------------------------------------------------
+
+/**
+ * Permitted deterministic signal types.
+ * Prohibited inference types (emotion, health, personality, etc.) are not listed
+ * and must never be added without explicit architecture review.
+ */
+export type CognitiveSignalType =
+  | 'repeated_decision_reopening'
+  | 'overdue_commitment_recurrence'
+  | 'recommendation_response_pattern'
+  | 'mission_completion_sequence'
+  | 'review_timing_preference'
+  | 'summary_vs_detail_preference'
+  | 'preferred_evidence_depth'
+
+/** Lifecycle status of a cognitive signal. */
+export type CognitiveSignalStatus = 'observed' | 'proposed' | 'suppressed' | 'expired'
+
+/** Audit action types for a cognitive signal. */
+export type CognitiveSignalAuditAction =
+  | 'analysis_initiated'
+  | 'analysis_blocked'
+  | 'proposed'
+  | 'updated'
+  | 'suppressed'
+  | 'expired'
+  | 'rejected'
+  | 'duplicate_prevented'
+
+/** Immutable audit record for a cognitive signal state change. */
+export type CognitiveSignalAuditEvent = {
+  id: string
+  action: CognitiveSignalAuditAction
+  timestamp: string
+  detail: string
+}
+
+/**
+ * A deterministic cognitive signal produced by the CognitiveSignalEngine.
+ *
+ * Signals are proposed (not confirmed). They must not change system behavior.
+ * Only future operator-confirmed understandings (Build 015) may personalize.
+ *
+ * Every signal must carry full provenance. Signals missing provenance are invalid.
+ */
+export type CognitiveSignal = {
+  /** Unique signal identifier. */
+  id: string
+  /** Type of cognitive pattern detected. */
+  signalType: CognitiveSignalType
+  /** Plain-language description of what Rosie observed. */
+  plainLanguageStatement: string
+  /** Primary data category used for this signal. */
+  dataCategory: CognitionDataCategory
+  /** IDs of vault records used as evidence (no raw values). */
+  evidenceIds: string[]
+  /** Count of evidence items observed. */
+  evidenceCount: number
+  /** ID of the deterministic rule that produced this signal. */
+  deterministicRuleId: string
+  /** Semver of the rule version at analysis time. */
+  deterministicRuleVersion: string
+  /** Plain-language explanation of the confidence basis. */
+  confidenceBasis: string
+  createdAt: string
+  updatedAt: string
+  /** ISO start of the observation window used. */
+  observationWindowStart: string
+  /** ISO end of the observation window (analysis time). */
+  observationWindowEnd: string
+  /** Feature surfaces permitted to display this signal (if confirmed). */
+  permittedFeatureUses: CognitionFeatureSurface[]
+  /** Full provenance record required for validation. */
+  provenance: CognitiveSignalProvenance
+  status: CognitiveSignalStatus
+  /** ISO expiry timestamp — signal returns to observed/expires after this date. */
+  expiresAt?: string
+  /** ISO timestamp when signal was expired. */
+  expiredAt?: string
+  /** ISO timestamp when signal was suppressed. */
+  suppressedAt?: string
+  /** Stable deterministic signature used for deduplication. */
+  signature: string
+  /** Append-only audit history. */
+  auditHistory: CognitiveSignalAuditEvent[]
+}
+
+/** Provenance record for a cognitive signal. */
+export type CognitiveSignalProvenance = {
+  deterministicRuleId: string
+  ruleVersion: string
+  /** IDs of vault records used as evidence. */
+  evidenceIds: string[]
+  analysisTimestamp: string
+  observationWindowStart: string
+  observationWindowEnd: string
+}
+
+/**
+ * Definition of a versioned deterministic rule.
+ * Every rule must be explicitly registered. Unknown versions must not execute.
+ */
+export type DeterministicRule = {
+  ruleId: string
+  ruleVersion: string
+  purpose: string
+  permittedInputCategories: CognitionDataCategory[]
+  minimumEvidenceCount: number
+  /** Days to look back when gathering evidence. */
+  observationWindowDays: number
+  outputSignalType: CognitiveSignalType
+  /** Days until an emitted signal expires (undefined = no automatic expiry). */
+  expirationDays?: number
+  permittedFeatureSurfaces: CognitionFeatureSurface[]
+  /** Template for the plain-language statement. Use {count} and {detail} placeholders. */
+  plainLanguageTemplate: string
+  /** Plain-language description of what this rule must NOT infer. */
+  prohibitedInferenceNote: string
 }

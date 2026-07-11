@@ -56,8 +56,9 @@ describe('Phase 3 migration — Build 013 safe defaults', () => {
   })
 
   it('pre-013 vaults never have cognition enabled after migration — consent defaults off', () => {
+    const skipBuilds = new Set(['build013_consent_off', 'build014_with_signals'])
     for (const [build, fixture] of Object.entries(compatibilityVaults)) {
-      if (build === 'build013_consent_off') continue
+      if (skipBuilds.has(build)) continue
       const migrated = migrateToLatest(fixture)
       expect(migrated.cognitionConsent!.status).not.toBe('on')
     }
@@ -137,5 +138,53 @@ describe('Phase 3 migration — malformed state fails closed', () => {
     expect(migrated.cognitionConsent!.status).toBe('off')
     expect(migrated.cognitionConsent!.permittedDataCategories).toEqual([])
     expect(migrated.cognitionConsent!.permittedFeatureSurfaces).toEqual([])
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Phase 3 migration — Build 014 cognitive signal fields
+// ---------------------------------------------------------------------------
+
+describe('Phase 3 migration — Build 014 cognitive signal fields', () => {
+  it('hydrates cognitiveSignals as empty array when absent in pre-014 vault', () => {
+    const migrated = migrateToLatest(compatibilityVaults['build013_no_phase3'])
+    expect(Array.isArray(migrated.cognitiveSignals)).toBe(true)
+    expect(migrated.cognitiveSignals).toHaveLength(0)
+  })
+
+  it('hydrates cognitiveSignals as empty array when absent in Build 012 vault', () => {
+    const migrated = migrateToLatest(compatibilityVaults['build012'])
+    expect(Array.isArray(migrated.cognitiveSignals)).toBe(true)
+    expect(migrated.cognitiveSignals).toHaveLength(0)
+  })
+
+  it('preserves valid cognitiveSignals when present', () => {
+    const migrated = migrateToLatest(compatibilityVaults['build014_with_signals'])
+    expect(Array.isArray(migrated.cognitiveSignals)).toBe(true)
+    expect(migrated.cognitiveSignals).toHaveLength(0) // empty array in fixture
+  })
+
+  it('discards malformed cognitive signals (fail closed)', () => {
+    const migrated = migrateToLatest(compatibilityVaults['build014_corrupt_signals'])
+    expect(Array.isArray(migrated.cognitiveSignals)).toBe(true)
+    // All 3 entries are malformed — should be discarded
+    expect(migrated.cognitiveSignals).toHaveLength(0)
+  })
+
+  it('cognitiveRuleRegistryVersion is preserved when valid string', () => {
+    const migrated = migrateToLatest(compatibilityVaults['build014_with_signals'])
+    expect(migrated.cognitiveRuleRegistryVersion).toBe('1.0.0')
+  })
+
+  it('cognitiveRuleRegistryVersion is undefined for pre-014 vaults', () => {
+    const migrated = migrateToLatest(compatibilityVaults['build012'])
+    expect(migrated.cognitiveRuleRegistryVersion).toBeUndefined()
+  })
+
+  it('migration is idempotent for Build 014 fields', () => {
+    const once = migrateToLatest(compatibilityVaults['build014_with_signals'])
+    const twice = migrateToLatest(once)
+    expect(twice.cognitiveSignals).toHaveLength(once.cognitiveSignals!.length)
+    expect(twice.cognitiveRuleRegistryVersion).toBe(once.cognitiveRuleRegistryVersion)
   })
 })

@@ -3,6 +3,7 @@ import type {
   OperatorUnderstanding,
   CloudSyncConsentDeclaration,
   ConnectorConsentDeclaration,
+  CognitiveSignal,
 } from './types/cognitive'
 
 export type RosieRecommendation = {
@@ -180,6 +181,10 @@ export type PersonalData = {
   cloudSyncConsentDeclaration?: CloudSyncConsentDeclaration
   /** Phase 3: per-connector consent declarations (not implemented in Build 013). */
   connectorConsentDeclarations?: ConnectorConsentDeclaration[]
+  /** Phase 3 Build 014: proposed cognitive signals from local analysis. */
+  cognitiveSignals?: CognitiveSignal[]
+  /** Phase 3 Build 014: version of the rule registry active when signals were last computed. */
+  cognitiveRuleRegistryVersion?: string
 }
 
 export type UnderstandingState = {
@@ -224,6 +229,34 @@ function normalizeCloudSyncDeclaration(value: unknown): CloudSyncConsentDeclarat
     return createDefaultCloudSyncConsent()
   }
   return declaration as CloudSyncConsentDeclaration
+}
+
+const VALID_SIGNAL_TYPES = [
+  'repeated_decision_reopening',
+  'overdue_commitment_recurrence',
+  'recommendation_response_pattern',
+  'mission_completion_sequence',
+  'review_timing_preference',
+  'summary_vs_detail_preference',
+  'preferred_evidence_depth',
+] as const
+
+const VALID_SIGNAL_STATUSES = ['observed', 'proposed', 'suppressed', 'expired'] as const
+
+function isSafeCognitiveSignal(value: unknown): value is import('./types/cognitive').CognitiveSignal {
+  if (!value || typeof value !== 'object') return false
+  const s = value as Partial<import('./types/cognitive').CognitiveSignal>
+  return (
+    typeof s.id === 'string'
+    && VALID_SIGNAL_TYPES.includes(s.signalType as typeof VALID_SIGNAL_TYPES[number])
+    && VALID_SIGNAL_STATUSES.includes(s.status as typeof VALID_SIGNAL_STATUSES[number])
+    && typeof s.deterministicRuleId === 'string'
+    && typeof s.deterministicRuleVersion === 'string'
+    && typeof s.signature === 'string'
+    && Array.isArray(s.evidenceIds)
+    && Array.isArray(s.auditHistory)
+    && Array.isArray(s.permittedFeatureUses)
+  )
 }
 
 export function normalizePersonalData(raw: PersonalData): PersonalData {
@@ -311,6 +344,13 @@ export function normalizePersonalData(raw: PersonalData): PersonalData {
           && Array.isArray(declaration.auditHistory),
         )
       : [],
+    // Phase 3 Build 014: cognitive signals — malformed entries are discarded (fail closed)
+    cognitiveSignals: Array.isArray(raw.cognitiveSignals)
+      ? raw.cognitiveSignals.filter(isSafeCognitiveSignal)
+      : [],
+    cognitiveRuleRegistryVersion: typeof raw.cognitiveRuleRegistryVersion === 'string'
+      ? raw.cognitiveRuleRegistryVersion
+      : undefined,
   }
 }
 
