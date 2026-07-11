@@ -40,30 +40,6 @@ const MAPPINGS: PresentationMapping[] = [
     explanation: 'Expands evidence where confirmed preference exists.',
     prohibitedBehavior: 'No sensitive values may be surfaced.',
   },
-  {
-    mappingId: 'map-review-timing',
-    mappingVersion: '1',
-    supportedRuleId: 'review_timing_preference',
-    requiredUnderstandingState: 'operator_confirmed',
-    requiredFeatureSurface: 'review',
-    resultingSetting: 'reviewTimingMode',
-    priority: 75,
-    conflictBehavior: 'newest_confirmed',
-    explanation: 'Aligns review presentation with preferred review window.',
-    prohibitedBehavior: 'No autonomous scheduling.',
-  },
-  {
-    mappingId: 'map-mission-sequence',
-    mappingVersion: '1',
-    supportedRuleId: 'mission_completion_sequence',
-    requiredUnderstandingState: 'operator_confirmed',
-    requiredFeatureSurface: 'mission_planning',
-    resultingSetting: 'planningSequenceMode',
-    priority: 70,
-    conflictBehavior: 'highest_priority',
-    explanation: 'Adjusts mission planning display sequence.',
-    prohibitedBehavior: 'No execution authority changes.',
-  },
 ]
 
 const nowIso = () => new Date().toISOString()
@@ -102,14 +78,22 @@ export const getNeutralPresentationProfile = (): PresentationProfile => ({
 })
 
 const hasConsent = (consent: CognitionConsent | null | undefined) =>
-  !!consent &&
-  consent.status === 'on' &&
-  (consent.permittedDataCategories || []).includes(COGNITIVE_CATEGORY)
+  !!consent
+  && consent.status === 'on'
+  && typeof consent.version === 'string'
+  && typeof consent.updatedAt === 'string'
+  && Array.isArray(consent.permittedDataCategories)
+  && Array.isArray(consent.permittedFeatureSurfaces)
+  && consent.permittedDataCategories.includes(COGNITIVE_CATEGORY)
 
 const isUnderstandingEligible = (understanding: OperatorUnderstanding, now: number) => {
   if (understanding.state !== 'operator_confirmed') return false
   if (!understanding.personalizationEligible) return false
   if (understanding.expiresAt && parseDate(understanding.expiresAt) <= now) return false
+  if (!understanding.provenance || understanding.provenance.dataSource !== 'local_vault') return false
+  if (understanding.provenance.ruleId !== understanding.ruleId) return false
+  if (understanding.provenance.ruleVersion !== understanding.ruleVersion) return false
+  if (!Array.isArray(understanding.evidenceIds) || understanding.evidenceIds.length === 0) return false
   return true
 }
 
@@ -229,6 +213,10 @@ export const resolvePresentationProfile = (params: {
     }
     const mappings = MAPPINGS.filter(m => m.supportedRuleId === understanding.ruleId)
     for (const mapping of mappings) {
+      if (!params.consent!.permittedFeatureSurfaces.includes(mapping.requiredFeatureSurface)) {
+        audit.push({ id: uuid(), action: 'blocked_by_permission', timestamp: nowIso(), detail: `Surface ${mapping.requiredFeatureSurface} is not permitted.` })
+        continue
+      }
       const candidate = buildCandidate(understanding, mapping)
       if (!candidate) continue
       const group = candidatesBySetting.get(candidate.setting) || []
@@ -298,21 +286,33 @@ export const applyOperatorOverride = (overrides: PresentationOverride[], input: 
 
 export const removeOperatorOverride = (overrides: PresentationOverride[], id: string) => overrides.filter(o => o.id !== id)
 
-export const resolveSurfacePresentation = (profile: PresentationProfile, _surface: CognitionFeatureSurface): SurfacePresentation => ({
-  personalized: profile.validationState === 'adaptive',
-  summaryDetailMode: profile.summaryDetailMode,
-  informationDensity: profile.informationDensity,
-  evidenceDepth: profile.evidenceDepth,
-  planningSequenceMode: profile.planningSequenceMode,
-  reviewTimingMode: profile.reviewTimingMode,
-  briefingSectionOrder: profile.briefingSectionOrder,
-  expansionDefaults: profile.expansionDefaults,
-  indicator: profile.validationState === 'adaptive'
-    ? 'Personalized presentation active'
-    : profile.validationState === 'blocked'
-      ? 'Personalization blocked by consent'
-      : 'Neutral presentation',
-})
+export const resolveSurfacePresentation = (profile: PresentationProfile, surface: CognitionFeatureSurface): SurfacePresentation => {
+  const neutral = getNeutralPresentationProfile()
+  const scoped: PresentationProfile = {
+    ...neutral,
+    validationState: profile.validationState,
+    activeAdaptations: profile.activeAdaptations.filter((item) => item.targetSurface === surface),
+    operatorOverrides: profile.operatorOverrides.filter((item) => item.targetSurface === surface),
+  }
+  for (const adaptation of scoped.activeAdaptations) applySetting(scoped, adaptation)
+  for (const override of scoped.operatorOverrides) applyOverride(scoped, override)
+  const personalized = scoped.activeAdaptations.length > 0 || scoped.operatorOverrides.length > 0
+  return {
+    personalized,
+    summaryDetailMode: scoped.summaryDetailMode,
+    informationDensity: scoped.informationDensity,
+    evidenceDepth: scoped.evidenceDepth,
+    planningSequenceMode: scoped.planningSequenceMode,
+    reviewTimingMode: scoped.reviewTimingMode,
+    briefingSectionOrder: scoped.briefingSectionOrder,
+    expansionDefaults: scoped.expansionDefaults,
+    indicator: personalized
+      ? 'Personalized presentation active'
+      : profile.validationState === 'blocked'
+        ? 'Personalization blocked by consent'
+        : 'Neutral presentation',
+  }
+}
 
 export const explainAdaptation = (profile: PresentationProfile, adaptationId: string) =>
   profile.explanations.find(e => e.adaptationId === adaptationId)?.summary || 'No explanation available.'
