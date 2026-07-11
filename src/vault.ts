@@ -72,7 +72,7 @@ export function getRecoveryAudit(data: PersonalData): RecoveryAuditEvent[] {
 
 export function addRecoveryAuditEvent(data: PersonalData, event: RecoveryAuditEvent): PersonalData {
   const existing = data.recoveryAudit ?? []
-  return { ...data, recoveryAudit: [...existing, event].slice(0, 100) }
+  return { ...data, recoveryAudit: [event, ...existing].slice(0, 100) }
 }
 
 export function hasLegacyRecoveryAudit(): boolean {
