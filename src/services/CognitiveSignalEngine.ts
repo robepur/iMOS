@@ -28,7 +28,7 @@ import type {
 } from '../types/cognitive'
 import type { PersonalData } from '../localData'
 import type { DeterministicRule } from '../types/cognitive'
-import { isCognitionEnabled, isDataCategoryPermitted } from './CognitionConsentService'
+import { isCognitionEnabled, isDataCategoryPermitted, isFeatureSurfacePermitted } from './CognitionConsentService'
 import {
   RULE_REGISTRY,
   REGISTRY_VERSION,
@@ -444,6 +444,16 @@ export function analyze(
       analysisTimestamp: analysisTime.toISOString(),
       blocked: true,
       blockReason: 'Cognition consent is not enabled.',
+    }
+  }
+
+  if (!isFeatureSurfacePermitted(consent, 'understanding_dashboard')) {
+    return {
+      signals: [],
+      registryVersion: REGISTRY_VERSION,
+      analysisTimestamp: analysisTime.toISOString(),
+      blocked: true,
+      blockReason: 'Cognitive signal analysis requires permission for the understanding dashboard surface.',
     }
   }
 
