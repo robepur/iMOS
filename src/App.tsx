@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useMemo, useState } from 'react'
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import { BrainCircuit, Clock3, KeyRound, ListChecks, Lock, LockKeyhole, Network, Route, ShieldCheck, Zap } from 'lucide-react'
 import { useVault } from './hooks/useVault'
 import { usePriorities } from './hooks/usePriorities'
@@ -8,12 +8,14 @@ import { useKnowledgeGraph } from './hooks/useKnowledgeGraph'
 import { useUnderstanding } from './hooks/useUnderstanding'
 import { RosieEngine } from './services/RosieEngine'
 import { UnderstandingEngine } from './services/UnderstandingEngine'
+import { analyze as analyzeSignals } from './services/CognitiveSignalEngine'
+import { isCognitionEnabled } from './services/CognitionConsentService'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import VaultGate from './features/vault/VaultGate'
 import DataPanel from './features/vault/DataPanel'
 import { Arrival, Brief, FocusView, Reflection, TimelineItem } from './features/arrival/OperatingLoop'
 import PriorityConsole from './features/priorities/PriorityConsole'
-import { CognitionConsentPanel } from './features/cognition'
+import { CognitionConsentPanel, CognitiveSignalsPanel } from './features/cognition'
 
 const ReviewCenter           = lazy(() => import('./features/review/ReviewCenter'))
 const RecoveryConsole        = lazy(() => import('./features/recovery/RecoveryConsole'))
@@ -46,8 +48,42 @@ export default function App() {
   const [showUnderstanding, setShowUnderstanding]   = useState(false)
   const [showMissions, setShowMissions]             = useState(false)
   const [showCognition, setShowCognition]           = useState(false)
+  const [showSignals, setShowSignals]               = useState(false)
 
   const date = useMemo(() => new Intl.DateTimeFormat('en-US', { weekday: 'long', month: 'long', day: 'numeric' }).format(new Date()), [])
+
+  // Run cognitive signal analysis when vault data changes (consent must be enabled)
+  const lastSignalAnalysis = useRef<string | null>(null)
+  useEffect(() => {
+    if (!vault.data) return
+    const consent = vault.data.cognitionConsent
+    if (!isCognitionEnabled(consent)) {
+      lastSignalAnalysis.current = null
+      return
+    }
+    const enabledConsent = consent!
+    // Deterministic fingerprint of every approved Build 014 input. Cognitive
+    // signal persistence is intentionally excluded to prevent save loops.
+    const dataKey = JSON.stringify({
+      consent: {
+        status: enabledConsent.status,
+        updatedAt: enabledConsent.updatedAt,
+        categories: enabledConsent.permittedDataCategories,
+        surfaces: enabledConsent.permittedFeatureSurfaces,
+      },
+      commitments: vault.data.commitments.map((item) => [item.id, item.status, item.due]),
+      decisions: vault.data.decisions.map((item) => [item.id, item.status, item.context, item.createdAt]),
+      reflections: vault.data.reflections.map((item) => [item.id, item.createdAt]),
+      recommendations: (vault.data.recommendations ?? []).map((item) => [item.id, item.dismissed, item.createdAt]),
+      missions: (vault.data.missionPlans ?? []).map((item) => [item.id, item.status, item.updatedAt, item.createdAt]),
+    })
+    if (lastSignalAnalysis.current === dataKey) return
+    lastSignalAnalysis.current = dataKey
+    const result = analyzeSignals(vault.data, consent)
+    if (!result.blocked) {
+      vault.saveCognitiveSignals(result.signals, result.registryVersion)
+    }
+  }, [vault])
 
   useEffect(() => {
     if (!understanding || !vault.data) return
@@ -123,6 +159,14 @@ export default function App() {
           </button>
           <button className="utilityButton" onClick={() => setShowMissions(true)}><Route size={16} /> MISSION</button>
           <button className="utilityButton" onClick={() => setShowCognition(true)}><BrainCircuit size={16} /> COGNITION</button>
+          {isCognitionEnabled(data.cognitionConsent) && (
+            <button
+              className={`utilityButton${(data.cognitiveSignals ?? []).filter((s) => s.status === 'proposed').length > 0 ? ' utilityButton--alert' : ''}`}
+              onClick={() => setShowSignals(true)}
+            >
+              <BrainCircuit size={16} /> SIGNALS{(data.cognitiveSignals ?? []).filter((s) => s.status === 'proposed').length > 0 ? ` (${(data.cognitiveSignals ?? []).filter((s) => s.status === 'proposed').length})` : ''}
+            </button>
+          )}
           <button className="utilityButton" onClick={() => setShowKnowledge(true)}><Network size={16} /> KNOWLEDGE</button>
           <button className="utilityButton" onClick={() => setShowPriorities(true)}><ListChecks size={16} /> PRIORITIES</button>
           <button className="utilityButton" onClick={() => setShowSecrets(true)}><KeyRound size={16} /> SECRETS</button>
@@ -164,6 +208,13 @@ export default function App() {
               consent={data.cognitionConsent}
               onUpdate={vault.updateCognitionConsent}
               onClose={() => setShowCognition(false)}
+            />
+          )}
+          {showSignals && (
+            <CognitiveSignalsPanel
+              signals={data.cognitiveSignals ?? []}
+              onSuppress={vault.suppressCognitiveSignal}
+              onClose={() => setShowSignals(false)}
             />
           )}
         </Suspense>

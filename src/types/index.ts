@@ -43,4 +43,11 @@ export type {
   ConnectorPermissionGrant,
   ConnectorConsentDeclaration,
   Phase3ConsentState,
+  CognitiveSignalType,
+  CognitiveSignalStatus,
+  CognitiveSignalAuditAction,
+  CognitiveSignalAuditEvent,
+  CognitiveSignal,
+  CognitiveSignalProvenance,
+  DeterministicRule,
 } from './cognitive'

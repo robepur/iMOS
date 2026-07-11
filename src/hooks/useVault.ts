@@ -11,7 +11,7 @@ import type {
   TimelineEntry,
   UnderstandingState,
 } from '../localData'
-import type { CognitionConsent } from '../types/cognitive'
+import type { CognitionConsent, CognitiveSignal } from '../types/cognitive'
 import { createId, createInitialData, normalizePersonalData } from '../localData'
 import { VaultService } from '../services/VaultService'
 import { StorageService } from '../services/StorageService'
@@ -58,6 +58,10 @@ export type UseVaultReturn = {
   deleteMissionPlan: (planId: string) => void
   /** Phase 3: Update the operator's cognition consent record. */
   updateCognitionConsent: (updated: CognitionConsent) => void
+  /** Phase 3 Build 014: Save updated cognitive signals (merged by engine). */
+  saveCognitiveSignals: (signals: CognitiveSignal[], registryVersion: string) => void
+  /** Phase 3 Build 014: Suppress a cognitive signal by id. */
+  suppressCognitiveSignal: (signalId: string) => void
 }
 
 function timelineSignature(entry: Omit<TimelineEntry, 'id' | 'createdAt'>): string {
@@ -635,6 +639,35 @@ export function useVault(): UseVaultReturn {
     })
   }, [])
 
+  const saveCognitiveSignals = useCallback((signals: CognitiveSignal[], registryVersion: string) => {
+    setData((prev) => {
+      if (!prev) return prev
+      return { ...prev, cognitiveSignals: signals, cognitiveRuleRegistryVersion: registryVersion }
+    })
+  }, [])
+
+  const suppressCognitiveSignal = useCallback((signalId: string) => {
+    setData((prev) => {
+      if (!prev) return prev
+      const now = new Date()
+      const updated = (prev.cognitiveSignals ?? []).map((s) => {
+        if (s.id !== signalId) return s
+        if (s.status === 'suppressed' || s.status === 'expired') return s
+        return {
+          ...s,
+          status: 'suppressed' as const,
+          suppressedAt: now.toISOString(),
+          updatedAt: now.toISOString(),
+          auditHistory: [
+            ...s.auditHistory,
+            { id: createId('sig-audit'), action: 'suppressed' as const, timestamp: now.toISOString(), detail: 'Operator suppressed signal.' },
+          ],
+        }
+      })
+      return { ...prev, cognitiveSignals: updated }
+    })
+  }, [])
+
   return {
     vaultState, data, passphrase, error, saving, setData,
     createVault, unlock, lock, reset,
@@ -647,5 +680,7 @@ export function useVault(): UseVaultReturn {
     saveMissionPlan, setMissionPlanStatus, updateMissionPlan, updateMissionStepStatus, updateMissionStep,
     addMissionStep, deleteMissionStep, reorderMissionSteps, deleteMissionPlan,
     updateCognitionConsent,
+    saveCognitiveSignals,
+    suppressCognitiveSignal,
   }
 }
