@@ -72,7 +72,7 @@ export default function App() {
         surfaces: enabledConsent.permittedFeatureSurfaces,
       },
       commitments: vault.data.commitments.map((item) => [item.id, item.status, item.due]),
-      decisions: vault.data.decisions.map((item) => [item.id, item.status, item.decision, item.createdAt]),
+      decisions: vault.data.decisions.map((item) => [item.id, item.status, item.context, item.createdAt]),
       reflections: vault.data.reflections.map((item) => [item.id, item.createdAt]),
       recommendations: (vault.data.recommendations ?? []).map((item) => [item.id, item.dismissed, item.createdAt]),
       missions: (vault.data.missionPlans ?? []).map((item) => [item.id, item.status, item.updatedAt, item.createdAt]),
