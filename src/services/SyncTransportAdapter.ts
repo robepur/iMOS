@@ -149,6 +149,7 @@ export class SyncTransportAdapter {
       adapterId: SYNC_ADAPTER.id,
       method: input.method,
       url: input.url,
+      allowLocalAddress: true,
       purpose: input.method === 'GET' ? 'sync_metadata_read' : 'sync_metadata_write',
       dataClassification: 'synchronized_encrypted',
       timeoutMs: 3000,

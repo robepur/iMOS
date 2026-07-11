@@ -344,7 +344,7 @@ describe('Build 019 sync foundation', () => {
         schemaVersion: '1.0.0',
         enabled: true,
         localEndpointConfigured: true,
-        localReferenceEndpoint: 'http://operator:secret@127.0.0.1:8787',
+        localReferenceEndpoint: 'http://u:p@127.0.0.1:8787',
         configuredAt: new Date().toISOString(),
       },
     })

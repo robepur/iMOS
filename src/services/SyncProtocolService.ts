@@ -48,21 +48,22 @@ function canonicalSyncPayload(input: {
   createdAt: string
   expiresAt: string
 }): unknown {
-  return {
+  const payload: Record<string, unknown> = {
     domain: 'sync_request',
     protocolVersion: input.protocolVersion,
     method: input.method,
     namespace: input.namespace,
     objectId: input.objectId,
-    objectVersion: input.objectVersion,
-    parentVersion: input.parentVersion,
     signerDeviceId: input.signerDeviceId,
     requestId: input.requestId,
     replayId: input.replayId,
-    ciphertextDigest: input.ciphertextDigest,
     createdAt: input.createdAt,
     expiresAt: input.expiresAt,
   }
+  if (input.objectVersion !== undefined) payload.objectVersion = input.objectVersion
+  if (input.parentVersion !== undefined) payload.parentVersion = input.parentVersion
+  if (input.ciphertextDigest !== undefined) payload.ciphertextDigest = input.ciphertextDigest
+  return payload
 }
 
 export class SyncProtocolService {
@@ -218,11 +219,10 @@ export class SyncProtocolService {
   }
 
   envelopeDigest(envelope: EncryptedSyncEnvelope): string {
-    const digestBytes = canonicalizeUtf8({
+    const payload: Record<string, unknown> = {
       namespace: envelope.namespace,
       objectId: envelope.objectId,
       objectVersion: envelope.objectVersion,
-      parentVersion: envelope.parentVersion,
       encryptedPayload: envelope.encryptedPayload,
       iv: envelope.iv,
       encryptedMetadata: envelope.encryptedMetadata,
@@ -232,7 +232,9 @@ export class SyncProtocolService {
       signerDeviceId: envelope.signerDeviceId,
       signature: envelope.signature,
       tombstone: envelope.tombstone,
-    })
+    }
+    if (envelope.parentVersion !== undefined) payload.parentVersion = envelope.parentVersion
+    const digestBytes = canonicalizeUtf8(payload)
     return btoa(String.fromCharCode(...digestBytes))
   }
 }

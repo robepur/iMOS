@@ -108,7 +108,7 @@ function normalizePath(pathname: string): { ok: true; value: string } | { ok: fa
   return { ok: true, value: `/${cleanSegments.join('/')}`.replace(/\/+/g, '/') || '/' }
 }
 
-function normalizeUrl(rawUrl: string): {
+function normalizeUrl(rawUrl: string, allowLocalAddress = false): {
   ok: true
   url: URL
   normalizedOrigin: string
@@ -137,7 +137,7 @@ function normalizeUrl(rawUrl: string): {
   if (!normalized.ok) return normalized
   const host = normalizeHostname(url.hostname)
   if (!host) return { ok: false, reason: 'invalid_url' }
-  if (isLocalAddress(host)) return { ok: false, reason: 'local_address_not_allowed' }
+  if (!allowLocalAddress && isLocalAddress(host)) return { ok: false, reason: 'local_address_not_allowed' }
   const port = url.port ? Number(url.port) : defaultPort(url.protocol)
   if (!Number.isInteger(port) || port <= 0) return { ok: false, reason: 'invalid_url' }
   return {
@@ -247,7 +247,7 @@ export function evaluateConnectivityPolicy(
     return { allowed: false, reason: 'malformed_request' }
   }
 
-  const normalized = normalizeUrl(descriptor.url)
+  const normalized = normalizeUrl(descriptor.url, descriptor.allowLocalAddress === true)
   if (!normalized.ok) return { allowed: false, reason: normalized.reason }
 
   const adapter = findAdapter(snapshot, descriptor.adapterId)
