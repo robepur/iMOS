@@ -153,7 +153,7 @@ describe('UnderstandingReviewService conversion and deduplication', () => {
       signal: signalFixture(),
       consent: consentOn(),
       existingUnderstandings: [],
-      rejectedSignatures: ['overdue_commitment_recurrence|1.0.0|overdue_commitment_recurrence|c1,c2,c3|2026-04-10T00:00:00.000Z|2026-07-10T00:00:00.000Z|commitments are repeatedly overdue.'],
+      rejectedSignatures: ['overdue_commitment_recurrence|1.0.0|overdue_commitment_recurrence|c1,c2,c3'],
       reviewAudit: [],
       now: new Date('2026-07-10T00:00:00.000Z'),
     })
