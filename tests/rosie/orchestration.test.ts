@@ -72,11 +72,11 @@ it('restores neutral presentation and disables personalization when cognition co
         setting: 'summaryDetailMode' as const,
         value: 'detail_first',
         reason: 'test',
-        activatedAt: now.toISOString(),
+        activatedAt: '2025-06-01T12:00:00.000Z',
       }],
     },
   }
-  const result = runRosieOrchestration({ data, now })
+  const result = runRosieOrchestration({ data, now: new Date('2025-06-01T12:00:00Z') })
   expect(result.blocked).toBe(true)
   expect(result.changed).toBe(true)
   expect(result.data.presentationPersonalizationEnabled).toBe(false)
