@@ -1,13 +1,13 @@
 import { Download, RotateCcw, ShieldCheck } from 'lucide-react'
-import { VaultService } from '../../services/VaultService'
 
 type Props = {
   onClose: () => void
   onOpenRecovery: () => void
   onReset: () => void
+  onBackup: () => Promise<void>
 }
 
-export default function DataPanel({ onClose, onOpenRecovery, onReset }: Props) {
+export default function DataPanel({ onClose, onOpenRecovery, onReset, onBackup }: Props) {
   return (
     <section className="dataPanel panel" aria-label="Vault Control">
       <div>
@@ -16,7 +16,7 @@ export default function DataPanel({ onClose, onOpenRecovery, onReset }: Props) {
         <p>All operator data remains inside the encrypted personal vault.</p>
       </div>
       <div className="dataActions">
-        <button className="secondaryButton" onClick={() => void VaultService.exportBackup()}>
+        <button className="secondaryButton" onClick={() => void onBackup()}>
           <Download size={16} /> BACKUP
         </button>
         <button className="secondaryButton" onClick={() => { onClose(); onOpenRecovery() }}>
