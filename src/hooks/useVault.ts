@@ -17,6 +17,7 @@ import type {
   OperatorUnderstanding,
   UnderstandingReviewEvent,
 } from '../types/cognitive'
+import type { RecoveryAuditEvent } from '../types/recovery'
 import type {
   PresentationAdaptationAuditEvent,
   PresentationOverride,
@@ -73,6 +74,8 @@ export type UseVaultReturn = {
   saveReflection: (accomplished: string, remember: string, tomorrow: string) => void
   deleteReflection: (id: string) => void
   restoreVault: (backup: unknown, backupPassphrase: string) => Promise<void>
+  exportVaultBackup: () => Promise<void>
+  recordRecoveryAuditEvent: (event: RecoveryAuditEvent) => void
   rotateVaultPassphrase: (current: string, replacement: string) => Promise<void>
   dismissRecommendation: (rec: RosieRecommendation) => void
   snoozeRecommendation: (rec: RosieRecommendation, days: number) => void
@@ -291,6 +294,23 @@ export function useVault(): UseVaultReturn {
     setData(recovered)
     setPassphrase(backupPassphrase)
   }, [])
+
+  const recordRecoveryAuditEvent = useCallback((event: RecoveryAuditEvent) => {
+    setData((prev) => prev ? ({
+      ...prev,
+      recoveryAudit: [event, ...(prev.recoveryAudit ?? [])].slice(0, 100),
+    }) : prev)
+  }, [])
+
+  const exportVaultBackup = useCallback(async () => {
+    await VaultService.exportBackup()
+    recordRecoveryAuditEvent({
+      id: createId('recovery-audit'),
+      type: 'backup-created',
+      createdAt: new Date().toISOString(),
+      detail: 'Encrypted backup package created.',
+    })
+  }, [recordRecoveryAuditEvent])
 
   const rotateVaultPassphrase = useCallback(async (current: string, replacement: string) => {
     if (!data) return
@@ -880,7 +900,7 @@ export function useVault(): UseVaultReturn {
     addTimelineEntry, updatePriorities, updateSecrets,
     addCommitment, addDecision, toggleCommitment, toggleDecision,
     completePrimaryPriority, saveReflection, deleteReflection,
-    restoreVault, rotateVaultPassphrase,
+    restoreVault, exportVaultBackup, recordRecoveryAuditEvent, rotateVaultPassphrase,
     dismissRecommendation, snoozeRecommendation, completeRecommendation,
     syncUnderstandingState,
     saveMissionPlan, setMissionPlanStatus, updateMissionPlan, updateMissionStepStatus, updateMissionStep,
