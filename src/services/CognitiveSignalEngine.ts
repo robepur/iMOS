@@ -287,7 +287,7 @@ export function validateSignal(signal: CognitiveSignal): boolean {
   if (!signal.id || !signal.signalType || !signal.deterministicRuleId || !signal.signature) return false
   if (!signal.provenance) return false
   if (!Array.isArray(signal.evidenceIds) || !Array.isArray(signal.auditHistory)) return false
-  const rule = getRuleById(signal.deterministicRuleId)
+  const rule = getRuleById(signal.deterministicRuleId, signal.deterministicRuleVersion)
   if (!rule) return false
   return true
 }
@@ -408,7 +408,7 @@ export function getActiveSignals(signals: CognitiveSignal[]): CognitiveSignal[] 
 }
 
 export function explainSignal(signal: CognitiveSignal): string {
-  const rule = getRuleById(signal.deterministicRuleId)
+  const rule = getRuleById(signal.deterministicRuleId, signal.deterministicRuleVersion)
   if (!rule) return `Signal type: ${signal.signalType}. Rule not found in registry.`
   return [
     `Signal: ${signal.plainLanguageStatement}`,
