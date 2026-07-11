@@ -163,26 +163,26 @@ describe('UnderstandingReviewService conversion and deduplication', () => {
 
 describe('UnderstandingReviewService lifecycle', () => {
   it('confirmation requires explicit action and sets personalization eligible', () => {
-    const confirmed = confirmUnderstanding([understandingFixture()], 'u-1', new Date('2026-07-10T00:00:00.000Z'))
+    const confirmed = confirmUnderstanding([understandingFixture()], 'u-1', new Date('2026-07-10T00:00:00.000Z'), consentOn())
     expect(confirmed[0].state).toBe('operator_confirmed')
     expect(confirmed[0].personalizationEligible).toBe(true)
   })
 
   it('correction preserves original statement in correction history', () => {
-    const corrected = correctUnderstanding([understandingFixture()], 'u-1', 'Corrected statement', 'operator adjustment', new Date('2026-07-10T00:00:00.000Z'))
+    const corrected = correctUnderstanding([understandingFixture()], 'u-1', 'Corrected statement', 'operator adjustment', new Date('2026-07-10T00:00:00.000Z'), consentOn())
     expect(corrected[0].state).toBe('operator_corrected')
     expect(corrected[0].correctionHistory[0].originalStatement).toBe('Commitments are repeatedly overdue.')
     expect(corrected[0].statement).toBe('Corrected statement')
   })
 
   it('rejection is terminal and records signature blocklist', () => {
-    const rejected = rejectUnderstanding([understandingFixture()], 'u-1', [], 'not correct', new Date('2026-07-10T00:00:00.000Z'))
+    const rejected = rejectUnderstanding([understandingFixture()], 'u-1', [], 'not correct', new Date('2026-07-10T00:00:00.000Z'), consentOn())
     expect(rejected.understandings[0].state).toBe('operator_rejected')
     expect(rejected.rejectedSignatures).toContain('sig')
   })
 
   it('expired understanding is set deterministically', () => {
-    const expired = expireUnderstanding([understandingFixture()], 'u-1', new Date('2026-07-10T00:00:00.000Z'))
+    const expired = expireUnderstanding([understandingFixture()], 'u-1', new Date('2026-07-10T00:00:00.000Z'), consentOn())
     expect(expired[0].state).toBe('expired')
     expect(expired[0].expiredAt).toBe('2026-07-10T00:00:00.000Z')
   })
@@ -204,8 +204,84 @@ describe('UnderstandingReviewService materially new evidence', () => {
 
 describe('UnderstandingReviewService suppression separation', () => {
   it('suppression updates source signal independently of understanding rejection', () => {
-    const suppressed = suppressSourceSignal([signalFixture()], 'sig-1', new Date('2026-07-10T00:00:00.000Z'))
+    const suppressed = suppressSourceSignal([signalFixture()], 'sig-1', new Date('2026-07-10T00:00:00.000Z'), consentOn())
     expect(suppressed[0].status).toBe('suppressed')
   })
 })
 
+
+
+describe('UnderstandingReviewService release gate hardening', () => {
+  it('blocks lifecycle mutation when consent is off', () => {
+    const original = understandingFixture()
+    const result = confirmUnderstanding(
+      [original],
+      original.id,
+      new Date('2026-07-10T00:00:00.000Z'),
+      createDefaultCognitionConsent(),
+    )
+    expect(result[0].state).toBe('proposed')
+    expect(result[0].personalizationEligible).toBe(false)
+  })
+
+  it('rejects signal provenance that does not match the rule', () => {
+    const signal = signalFixture({
+      provenance: {
+        ...signalFixture().provenance,
+        deterministicRuleId: 'repeated_decision_reopening',
+      },
+    })
+    expect(validateSourceSignal(signal, consentOn()).valid).toBe(false)
+  })
+
+  it('rejects inconsistent evidence provenance', () => {
+    const signal = signalFixture({
+      provenance: {
+        ...signalFixture().provenance,
+        evidenceIds: ['c1', 'c2'],
+      },
+    })
+    expect(validateSourceSignal(signal, consentOn()).valid).toBe(false)
+  })
+
+  it('blocks unchanged rejected evidence after observation timestamps and wording change', () => {
+    const first = createProposedUnderstanding({
+      signal: signalFixture(),
+      consent: consentOn(),
+      existingUnderstandings: [],
+      rejectedSignatures: [],
+      reviewAudit: [],
+      now: new Date('2026-07-10T00:00:00.000Z'),
+    })
+    const rejected = rejectUnderstanding(
+      first.understandings,
+      first.understandings[0].id,
+      [],
+      'incorrect',
+      new Date('2026-07-10T00:01:00.000Z'),
+      consentOn(),
+    )
+    const regenerated = signalFixture({
+      id: 'sig-2',
+      plainLanguageStatement: 'A newly worded statement using the same evidence.',
+      observationWindowStart: '2026-04-11T00:00:00.000Z',
+      observationWindowEnd: '2026-07-11T00:00:00.000Z',
+      provenance: {
+        ...signalFixture().provenance,
+        analysisTimestamp: '2026-07-11T00:00:00.000Z',
+        observationWindowStart: '2026-04-11T00:00:00.000Z',
+        observationWindowEnd: '2026-07-11T00:00:00.000Z',
+      },
+    })
+    const result = createProposedUnderstanding({
+      signal: regenerated,
+      consent: consentOn(),
+      existingUnderstandings: rejected.understandings,
+      rejectedSignatures: rejected.rejectedSignatures,
+      reviewAudit: [],
+      now: new Date('2026-07-11T00:00:00.000Z'),
+    })
+    expect(result.understandings).toHaveLength(1)
+    expect(result.understandings[0].state).toBe('operator_rejected')
+  })
+})
