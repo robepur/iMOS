@@ -1,3 +1,6 @@
+import {
+  SYNC_QUARANTINE_RECORD_SCHEMA_VERSION,
+} from '../types/sync'
 import type { SyncQuarantineReason, SyncQuarantineRecord } from '../types/sync'
 
 export class SyncQuarantineService {
@@ -12,8 +15,10 @@ export class SyncQuarantineService {
     now?: Date
   }): SyncQuarantineRecord {
     const record: SyncQuarantineRecord = {
+      schemaVersion: SYNC_QUARANTINE_RECORD_SCHEMA_VERSION,
       id: `sync-quarantine:${crypto.randomUUID()}`,
       reason: input.reason,
+      disposition: 'pending_review',
       requestId: input.requestId,
       namespace: input.namespace as SyncQuarantineRecord['namespace'],
       objectId: input.objectId as SyncQuarantineRecord['objectId'],
@@ -40,4 +45,3 @@ export class SyncQuarantineService {
 export function createSyncQuarantineService(): SyncQuarantineService {
   return new SyncQuarantineService()
 }
-

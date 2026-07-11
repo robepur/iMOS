@@ -7,6 +7,11 @@ export type ProtocolVersion = '1.0.0'
 export type EnvelopeVersion = '1.0.0'
 export type SyncSchemaVersion = '1.0.0'
 export type SyncCryptoSuiteVersion = '1.0.0'
+export type SyncStateSchemaVersion = '1.0.0'
+export type SyncQuarantineDisposition = 'pending_review' | 'discarded'
+
+export const SYNC_OPERATOR_CONTROL_STATE_SCHEMA_VERSION: SyncStateSchemaVersion = '1.0.0'
+export const SYNC_QUARANTINE_RECORD_SCHEMA_VERSION: SyncStateSchemaVersion = '1.0.0'
 
 export type SyncVisibleRoutingMetadata = {
   namespace: SyncNamespace
@@ -109,13 +114,17 @@ export type SyncQuarantineReason =
   | 'unexpected_content_type'
 
 export type SyncQuarantineRecord = {
+  schemaVersion: SyncStateSchemaVersion
   id: string
   reason: SyncQuarantineReason
+  disposition: SyncQuarantineDisposition
   requestId: string
   namespace: SyncNamespace
   objectId: EncryptedObjectId
   createdAt: string
   detail: string
+  ciphertextDigest?: string
+  diagnosticCode?: string
 }
 
 export type SyncProtocolErrorCode =
@@ -179,8 +188,9 @@ export type SyncTransportAuditEvent = {
 }
 
 export type SyncOperatorControlState = {
+  schemaVersion: SyncStateSchemaVersion
   enabled: boolean
   localEndpointConfigured: boolean
+  localReferenceEndpoint?: string
   configuredAt?: string
 }
-

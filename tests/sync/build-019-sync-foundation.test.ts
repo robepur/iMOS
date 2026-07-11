@@ -12,7 +12,7 @@ import {
   InMemoryDevicePrivateKeyStore,
 } from '../../src/services/DeviceIdentityService'
 import { DeviceTrustRegistry } from '../../src/services/DeviceTrustRegistry'
-import { createInitialData, normalizePersonalData } from '../../src/localData'
+import { createDefaultSyncOperatorControlState, createInitialData, normalizePersonalData } from '../../src/localData'
 
 function readBody(req: http.IncomingMessage): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -249,10 +249,18 @@ describe('Build 019 sync foundation', () => {
 
     const normalized = normalizePersonalData({
       ...initial,
-      syncOperatorControlState: { enabled: true, localEndpointConfigured: true, configuredAt: new Date().toISOString() },
+      syncOperatorControlState: {
+        schemaVersion: '1.0.0',
+        enabled: false,
+        localEndpointConfigured: true,
+        localReferenceEndpoint: 'http://127.0.0.1:8787',
+        configuredAt: new Date().toISOString(),
+      },
       syncQuarantine: [{
+        schemaVersion: '1.0.0',
         id: 'sync-quarantine:1',
         reason: 'malformed_response',
+        disposition: 'pending_review',
         requestId: 'request-1',
         namespace: 'sync:operator',
         objectId: 'obj:1',
@@ -260,8 +268,169 @@ describe('Build 019 sync foundation', () => {
         detail: 'bad payload',
       }],
     })
-    expect(normalized.syncOperatorControlState?.enabled).toBe(true)
+    expect(normalized.syncOperatorControlState?.localReferenceEndpoint).toBe('http://127.0.0.1:8787')
     expect(normalized.syncQuarantine?.length).toBe(1)
   })
-})
 
+  it('creates fresh disabled sync defaults each call', () => {
+    const a = createDefaultSyncOperatorControlState()
+    const b = createDefaultSyncOperatorControlState()
+    expect(a).not.toBe(b)
+    expect(a.enabled).toBe(false)
+    expect(b.enabled).toBe(false)
+    a.enabled = true
+    expect(b.enabled).toBe(false)
+  })
+
+  it('normalizes missing sync state to fresh disabled defaults through actual path', () => {
+    const base = createInitialData()
+    const one = normalizePersonalData({ ...base, syncOperatorControlState: undefined, syncQuarantine: undefined })
+    const two = normalizePersonalData({ ...base, syncOperatorControlState: undefined, syncQuarantine: undefined })
+    expect(one.syncOperatorControlState?.enabled).toBe(false)
+    expect(one.syncOperatorControlState?.localEndpointConfigured).toBe(false)
+    expect(one.syncOperatorControlState).not.toBe(two.syncOperatorControlState)
+    expect(one.syncQuarantine).toEqual([])
+  })
+
+  it('preserves valid local-reference sync state', () => {
+    const now = new Date().toISOString()
+    const normalized = normalizePersonalData({
+      ...createInitialData(),
+      syncOperatorControlState: {
+        schemaVersion: '1.0.0',
+        enabled: true,
+        localEndpointConfigured: true,
+        localReferenceEndpoint: 'http://localhost:8787',
+        configuredAt: now,
+      },
+    })
+    expect(normalized.syncOperatorControlState).toEqual({
+      schemaVersion: '1.0.0',
+      enabled: true,
+      localEndpointConfigured: true,
+      localReferenceEndpoint: 'http://localhost:8787',
+      configuredAt: now,
+    })
+  })
+
+  it('fails closed to disabled state for malformed operator sync state', () => {
+    const normalized = normalizePersonalData({
+      ...createInitialData(),
+      syncOperatorControlState: {
+        schemaVersion: '9.9.9',
+        enabled: 'true',
+        localEndpointConfigured: true,
+        localReferenceEndpoint: 'https://example.com',
+        configuredAt: 'invalid',
+      } as unknown as ReturnType<typeof createInitialData>['syncOperatorControlState'],
+    })
+    expect(normalized.syncOperatorControlState).toEqual(createDefaultSyncOperatorControlState())
+  })
+
+  it('rejects production/arbitrary or credential-bearing endpoints', () => {
+    const prod = normalizePersonalData({
+      ...createInitialData(),
+      syncOperatorControlState: {
+        schemaVersion: '1.0.0',
+        enabled: true,
+        localEndpointConfigured: true,
+        localReferenceEndpoint: 'http://example.com:8787',
+        configuredAt: new Date().toISOString(),
+      },
+    })
+    const credential = normalizePersonalData({
+      ...createInitialData(),
+      syncOperatorControlState: {
+        schemaVersion: '1.0.0',
+        enabled: true,
+        localEndpointConfigured: true,
+        localReferenceEndpoint: 'http://operator:secret@127.0.0.1:8787',
+        configuredAt: new Date().toISOString(),
+      },
+    })
+    expect(prod.syncOperatorControlState?.enabled).toBe(false)
+    expect(credential.syncOperatorControlState?.enabled).toBe(false)
+  })
+
+  it('rejects malformed, oversized, and secret-bearing quarantine records', () => {
+    const normalized = normalizePersonalData({
+      ...createInitialData(),
+      syncQuarantine: [
+        {
+          schemaVersion: '1.0.0',
+          id: 'sync-quarantine:ok',
+          reason: 'malformed_response',
+          disposition: 'pending_review',
+          requestId: 'request-ok',
+          namespace: 'sync:operator',
+          objectId: 'obj:ok',
+          createdAt: new Date().toISOString(),
+          detail: 'invalid remote envelope',
+        },
+        {
+          schemaVersion: '1.0.0',
+          id: 'sync-quarantine:bad-reason',
+          reason: 'not-a-real-reason',
+          disposition: 'pending_review',
+          requestId: 'request-bad',
+          namespace: 'sync:operator',
+          objectId: 'obj:bad',
+          createdAt: new Date().toISOString(),
+          detail: 'bad',
+        },
+        {
+          schemaVersion: '1.0.0',
+          id: 'sync-quarantine:secret',
+          reason: 'malformed_response',
+          disposition: 'pending_review',
+          requestId: 'request-secret',
+          namespace: 'sync:operator',
+          objectId: 'obj:secret',
+          createdAt: new Date().toISOString(),
+          detail: 'Authorization: Bearer abc123456789',
+        },
+        {
+          schemaVersion: '1.0.0',
+          id: 'sync-quarantine:oversized',
+          reason: 'malformed_response',
+          disposition: 'pending_review',
+          requestId: 'request-oversized',
+          namespace: 'sync:operator',
+          objectId: 'obj:oversized',
+          createdAt: new Date().toISOString(),
+          detail: 'x'.repeat(600),
+        },
+      ] as unknown as ReturnType<typeof createInitialData>['syncQuarantine'],
+    })
+    expect(normalized.syncQuarantine).toHaveLength(1)
+    expect(normalized.syncQuarantine?.[0].id).toBe('sync-quarantine:ok')
+  })
+
+  it('keeps normalization deterministic and idempotent for sync fields', () => {
+    const input = normalizePersonalData({
+      ...createInitialData(),
+      syncOperatorControlState: {
+        schemaVersion: '1.0.0',
+        enabled: false,
+        localEndpointConfigured: true,
+        localReferenceEndpoint: 'http://127.0.0.1:8787',
+        configuredAt: new Date().toISOString(),
+      },
+      syncQuarantine: [{
+        schemaVersion: '1.0.0',
+        id: 'sync-quarantine:idempotent',
+        reason: 'malformed_response',
+        disposition: 'pending_review',
+        requestId: 'request-idempotent',
+        namespace: 'sync:operator',
+        objectId: 'obj:idempotent',
+        createdAt: new Date().toISOString(),
+        detail: 'safe detail',
+      }],
+    })
+    const once = normalizePersonalData(input)
+    const twice = normalizePersonalData(once)
+    expect(twice.syncOperatorControlState).toEqual(once.syncOperatorControlState)
+    expect(twice.syncQuarantine).toEqual(once.syncQuarantine)
+  })
+})

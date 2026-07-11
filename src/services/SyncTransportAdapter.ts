@@ -11,6 +11,7 @@ import type {
   SyncTransportAuditEvent,
   SyncUploadAcknowledgment,
 } from '../types/sync'
+import { SYNC_OPERATOR_CONTROL_STATE_SCHEMA_VERSION } from '../types/sync'
 import { evaluateConnectivityPolicy, evaluateRedirectTarget } from './ConnectivityPolicyEvaluator'
 import { ConnectivityPolicyRegistry } from './ConnectivityPolicyRegistry'
 
@@ -64,6 +65,7 @@ export class SyncTransportAdapter {
   private readonly audit: SyncTransportAuditEvent[] = []
   private endpointBaseUrl: string | null = null
   private controlState: SyncOperatorControlState = {
+    schemaVersion: SYNC_OPERATOR_CONTROL_STATE_SCHEMA_VERSION,
     enabled: false,
     localEndpointConfigured: false,
   }
@@ -92,6 +94,7 @@ export class SyncTransportAdapter {
     this.controlState = {
       ...this.controlState,
       localEndpointConfigured: true,
+      localReferenceEndpoint: this.endpointBaseUrl,
       configuredAt: new Date().toISOString(),
     }
     this.pushAudit({
@@ -105,6 +108,7 @@ export class SyncTransportAdapter {
     this.controlState = {
       ...this.controlState,
       localEndpointConfigured: false,
+      localReferenceEndpoint: undefined,
       configuredAt: undefined,
     }
     this.pushAudit({
@@ -286,4 +290,3 @@ export function toConnectivityAudit(_: ConnectivityAuditEvent): SyncTransportAud
     createdAt: new Date().toISOString(),
   }
 }
-

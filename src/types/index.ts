@@ -142,6 +142,8 @@ export type {
   EnvelopeVersion,
   SyncSchemaVersion,
   SyncCryptoSuiteVersion,
+  SyncStateSchemaVersion,
+  SyncQuarantineDisposition,
   SyncVisibleRoutingMetadata,
   EncryptedSyncEnvelope,
   SyncUploadAcknowledgment,
