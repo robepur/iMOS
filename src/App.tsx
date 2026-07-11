@@ -10,12 +10,13 @@ import { RosieEngine } from './services/RosieEngine'
 import { UnderstandingEngine } from './services/UnderstandingEngine'
 import { analyze as analyzeSignals } from './services/CognitiveSignalEngine'
 import { isCognitionEnabled } from './services/CognitionConsentService'
+import { createProposedUnderstanding } from './services/UnderstandingReviewService'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import VaultGate from './features/vault/VaultGate'
 import DataPanel from './features/vault/DataPanel'
 import { Arrival, Brief, FocusView, Reflection, TimelineItem } from './features/arrival/OperatingLoop'
 import PriorityConsole from './features/priorities/PriorityConsole'
-import { CognitionConsentPanel, CognitiveSignalsPanel } from './features/cognition'
+import { CognitionConsentPanel, CognitiveSignalsPanel, UnderstandingReviewCenter } from './features/cognition'
 
 const ReviewCenter           = lazy(() => import('./features/review/ReviewCenter'))
 const RecoveryConsole        = lazy(() => import('./features/recovery/RecoveryConsole'))
@@ -49,6 +50,7 @@ export default function App() {
   const [showMissions, setShowMissions]             = useState(false)
   const [showCognition, setShowCognition]           = useState(false)
   const [showSignals, setShowSignals]               = useState(false)
+  const [showUnderstandingReview, setShowUnderstandingReview] = useState(false)
 
   const date = useMemo(() => new Intl.DateTimeFormat('en-US', { weekday: 'long', month: 'long', day: 'numeric' }).format(new Date()), [])
 
@@ -82,6 +84,49 @@ export default function App() {
     const result = analyzeSignals(vault.data, consent)
     if (!result.blocked) {
       vault.saveCognitiveSignals(result.signals, result.registryVersion)
+    }
+  }, [vault])
+
+  const lastUnderstandingConversion = useRef<string | null>(null)
+  useEffect(() => {
+    if (!vault.data) return
+    const consent = vault.data.cognitionConsent
+    if (!isCognitionEnabled(consent)) {
+      lastUnderstandingConversion.current = null
+      return
+    }
+    const proposedSignals = (vault.data.cognitiveSignals ?? []).filter((signal) => signal.status === 'proposed')
+    const conversionKey = JSON.stringify({
+      consentUpdatedAt: consent?.updatedAt,
+      signals: proposedSignals.map((signal) => [signal.id, signal.signature, signal.status, signal.updatedAt]),
+      rejected: vault.data.rejectedUnderstandingSignatures ?? [],
+    })
+    if (lastUnderstandingConversion.current === conversionKey) return
+    lastUnderstandingConversion.current = conversionKey
+
+    let understandings = vault.data.operatorUnderstandings ?? []
+    let rejectedSignatures = vault.data.rejectedUnderstandingSignatures ?? []
+    let reviewAudit = vault.data.understandingReviewAudit ?? []
+
+    for (const signal of proposedSignals) {
+      const conversion = createProposedUnderstanding({
+        signal,
+        consent,
+        existingUnderstandings: understandings,
+        rejectedSignatures,
+        reviewAudit,
+      })
+      understandings = conversion.understandings
+      rejectedSignatures = conversion.rejectedSignatures
+      reviewAudit = conversion.reviewAudit
+    }
+
+    const changed =
+      understandings.length !== (vault.data.operatorUnderstandings ?? []).length
+      || rejectedSignatures.length !== (vault.data.rejectedUnderstandingSignatures ?? []).length
+      || reviewAudit.length !== (vault.data.understandingReviewAudit ?? []).length
+    if (changed) {
+      vault.saveOperatorUnderstandings(understandings, rejectedSignatures, reviewAudit)
     }
   }, [vault])
 
@@ -167,6 +212,14 @@ export default function App() {
               <BrainCircuit size={16} /> SIGNALS{(data.cognitiveSignals ?? []).filter((s) => s.status === 'proposed').length > 0 ? ` (${(data.cognitiveSignals ?? []).filter((s) => s.status === 'proposed').length})` : ''}
             </button>
           )}
+          {isCognitionEnabled(data.cognitionConsent) && (
+            <button
+              className={`utilityButton${(data.operatorUnderstandings ?? []).filter((u) => u.state === 'proposed').length > 0 ? ' utilityButton--alert' : ''}`}
+              onClick={() => setShowUnderstandingReview(true)}
+            >
+              <BrainCircuit size={16} /> UNDERSTANDINGS{(data.operatorUnderstandings ?? []).filter((u) => u.state === 'proposed').length > 0 ? ` (${(data.operatorUnderstandings ?? []).filter((u) => u.state === 'proposed').length})` : ''}
+            </button>
+          )}
           <button className="utilityButton" onClick={() => setShowKnowledge(true)}><Network size={16} /> KNOWLEDGE</button>
           <button className="utilityButton" onClick={() => setShowPriorities(true)}><ListChecks size={16} /> PRIORITIES</button>
           <button className="utilityButton" onClick={() => setShowSecrets(true)}><KeyRound size={16} /> SECRETS</button>
@@ -215,6 +268,18 @@ export default function App() {
               signals={data.cognitiveSignals ?? []}
               onSuppress={vault.suppressCognitiveSignal}
               onClose={() => setShowSignals(false)}
+            />
+          )}
+          {showUnderstandingReview && (
+            <UnderstandingReviewCenter
+              understandings={data.operatorUnderstandings ?? []}
+              signals={data.cognitiveSignals ?? []}
+              onConfirm={vault.confirmOperatorUnderstanding}
+              onCorrect={vault.correctOperatorUnderstanding}
+              onReject={vault.rejectOperatorUnderstanding}
+              onExpire={vault.expireOperatorUnderstanding}
+              onSuppressSignal={vault.suppressUnderstandingSourceSignal}
+              onClose={() => setShowUnderstandingReview(false)}
             />
           )}
         </Suspense>
