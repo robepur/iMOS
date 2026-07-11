@@ -127,7 +127,7 @@ export default function ReviewCenter({ data, onDeleteReflection, onClose, presen
   presentation?: SurfacePresentation
 }) {
   const [period, setPeriod] = useState<ReviewPeriod>('week')
-  const [tab, setTab] = useState<ReviewTab>(presentation?.reviewTimingMode === 'morning' ? 'dashboard' : 'timeline')
+  const [tab, setTab] = useState<ReviewTab>(presentation?.reviewTimingMode === 'evening' ? 'timeline' : 'dashboard')
 
   const filteredTimeline = data.timeline.filter((e) => inPeriod(e.createdAt, period))
   const filteredCommitments = data.commitments.filter((c) => inPeriod(c.createdAt, period))
