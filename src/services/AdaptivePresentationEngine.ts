@@ -206,6 +206,10 @@ export const resolvePresentationProfile = (params: {
   const candidatesBySetting = new Map<AdaptationSettingKey, ActiveAdaptation[]>()
 
   for (const understanding of eligible) {
+    if (understanding.ruleVersion !== '1.0.0') {
+      audit.push({ id: uuid(), action: 'invalid_understanding_rejected', timestamp: nowIso(), detail: `Unsupported rule version ${understanding.ruleId}@${understanding.ruleVersion}` })
+      continue
+    }
     const hasMapping = MAPPINGS.some(m => m.supportedRuleId === understanding.ruleId)
     if (!hasMapping) {
       audit.push({ id: uuid(), action: 'invalid_understanding_rejected', timestamp: nowIso(), detail: `Unsupported rule ${understanding.ruleId}` })
@@ -240,7 +244,7 @@ export const resolvePresentationProfile = (params: {
     sourceUnderstandingIds: chosen.map(c => c.sourceUnderstandingId),
     sourceRuleVersions: chosen.map(c => c.sourceRuleVersion),
     activeAdaptations: chosen,
-    operatorOverrides: [...params.overrides],
+    operatorOverrides: params.overrides.filter((item) => params.consent!.permittedFeatureSurfaces.includes(item.targetSurface)),
     validationState: chosen.length > 0 ? 'adaptive' : 'neutral',
   }
 
@@ -249,12 +253,12 @@ export const resolvePresentationProfile = (params: {
     audit.push({ id: uuid(), action: 'adaptation_activated', timestamp: nowIso(), detail: `${adaptation.setting} set by ${adaptation.mappingId}` })
   }
 
-  for (const override of params.overrides) {
+  for (const override of profile.operatorOverrides) {
     applyOverride(profile, override)
     audit.push({ id: uuid(), action: 'override_changed', timestamp: nowIso(), detail: `Override applied for ${override.setting}` })
   }
 
-  profile.explanations = chosen.map(a => buildExplanation(a, params.overrides.some(o => o.setting === a.setting)))
+  profile.explanations = chosen.map(a => buildExplanation(a, profile.operatorOverrides.some(o => o.targetSurface === a.targetSurface && o.setting === a.setting)))
   return { profile, audit }
 }
 
