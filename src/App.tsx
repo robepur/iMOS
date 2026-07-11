@@ -61,17 +61,18 @@ export default function App() {
       lastSignalAnalysis.current = null
       return
     }
+    const enabledConsent = consent!
     // Deterministic fingerprint of every approved Build 014 input. Cognitive
     // signal persistence is intentionally excluded to prevent save loops.
     const dataKey = JSON.stringify({
       consent: {
-        status: consent.status,
-        updatedAt: consent.updatedAt,
-        categories: consent.permittedDataCategories,
-        surfaces: consent.permittedFeatureSurfaces,
+        status: enabledConsent.status,
+        updatedAt: enabledConsent.updatedAt,
+        categories: enabledConsent.permittedDataCategories,
+        surfaces: enabledConsent.permittedFeatureSurfaces,
       },
       commitments: vault.data.commitments.map((item) => [item.id, item.status, item.due]),
-      decisions: vault.data.decisions.map((item) => [item.id, item.status, item.updatedAt, item.createdAt]),
+      decisions: vault.data.decisions.map((item) => [item.id, item.status, item.decision, item.createdAt]),
       reflections: vault.data.reflections.map((item) => [item.id, item.createdAt]),
       recommendations: (vault.data.recommendations ?? []).map((item) => [item.id, item.dismissed, item.createdAt]),
       missions: (vault.data.missionPlans ?? []).map((item) => [item.id, item.status, item.updatedAt, item.createdAt]),
