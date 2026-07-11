@@ -41,6 +41,14 @@ function canMutateUnderstandingReview(data: PersonalData): boolean {
     && isFeatureSurfacePermitted(data.cognitionConsent, 'understanding_dashboard')
 }
 
+function canMutatePresentation(data: PersonalData, surface?: PresentationOverride['targetSurface']): boolean {
+  if (!isCognitionEnabled(data.cognitionConsent)) return false
+  if (surface) return isFeatureSurfacePermitted(data.cognitionConsent, surface)
+  return ['briefing', 'review', 'mission_planning'].some((item) =>
+    isFeatureSurfacePermitted(data.cognitionConsent, item as PresentationOverride['targetSurface']),
+  )
+}
+
 export type VaultState = 'setup' | 'locked' | 'unlocked'
 
 export type UseVaultReturn = {
@@ -797,6 +805,7 @@ export function useVault(): UseVaultReturn {
   const setPresentationPersonalizationEnabled = useCallback((enabled: boolean) => {
     setData((prev) => {
       if (!prev) return prev
+      if (enabled && !canMutatePresentation(prev)) return prev
       return { ...prev, presentationPersonalizationEnabled: enabled }
     })
   }, [])
@@ -819,7 +828,7 @@ export function useVault(): UseVaultReturn {
 
   const setPresentationOverride = useCallback((override: PresentationOverride) => {
     setData((prev) => {
-      if (!prev) return prev
+      if (!prev || !canMutatePresentation(prev, override.targetSurface)) return prev
       const existing = (prev.presentationOverrides ?? []).find((item) => item.id === override.id)
       if (!existing) {
         return { ...prev, presentationOverrides: [...(prev.presentationOverrides ?? []), override] }
@@ -843,8 +852,9 @@ export function useVault(): UseVaultReturn {
 
   const savePresentationOverrides = useCallback((overrides: PresentationOverride[]) => {
     setData((prev) => {
-      if (!prev) return prev
-      return { ...prev, presentationOverrides: overrides }
+      if (!prev || !canMutatePresentation(prev)) return prev
+      const permitted = overrides.filter((override) => canMutatePresentation(prev, override.targetSurface))
+      return { ...prev, presentationOverrides: permitted }
     })
   }, [])
 
