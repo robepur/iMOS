@@ -53,3 +53,23 @@ export type {
   CognitiveSignalProvenance,
   DeterministicRule,
 } from './cognitive'
+
+export type {
+  SummaryDetailMode,
+  InformationDensity,
+  EvidenceDepth,
+  PlanningSequenceMode,
+  ReviewTimingMode,
+  ExpansionDefaults,
+  AdaptationSettingKey,
+  PresentationMappingConflictBehavior,
+  PresentationMapping,
+  ActiveAdaptation,
+  PresentationOverride,
+  PresentationValidationState,
+  AdaptationExplanation,
+  PresentationProfile,
+  PresentationAdaptationAuditAction,
+  PresentationAdaptationAuditEvent,
+  SurfacePresentation,
+} from './presentation'

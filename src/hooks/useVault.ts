@@ -17,6 +17,11 @@ import type {
   OperatorUnderstanding,
   UnderstandingReviewEvent,
 } from '../types/cognitive'
+import type {
+  PresentationAdaptationAuditEvent,
+  PresentationOverride,
+  PresentationProfile,
+} from '../types/presentation'
 import { createId, createInitialData, normalizePersonalData } from '../localData'
 import { VaultService } from '../services/VaultService'
 import { StorageService } from '../services/StorageService'
@@ -34,6 +39,14 @@ import { isCognitionEnabled, isFeatureSurfacePermitted } from '../services/Cogni
 function canMutateUnderstandingReview(data: PersonalData): boolean {
   return isCognitionEnabled(data.cognitionConsent)
     && isFeatureSurfacePermitted(data.cognitionConsent, 'understanding_dashboard')
+}
+
+function canMutatePresentation(data: PersonalData, surface?: PresentationOverride['targetSurface']): boolean {
+  if (!isCognitionEnabled(data.cognitionConsent)) return false
+  if (surface) return isFeatureSurfacePermitted(data.cognitionConsent, surface)
+  return ['briefing', 'review', 'mission_planning'].some((item) =>
+    isFeatureSurfacePermitted(data.cognitionConsent, item as PresentationOverride['targetSurface']),
+  )
 }
 
 export type VaultState = 'setup' | 'locked' | 'unlocked'
@@ -91,6 +104,16 @@ export type UseVaultReturn = {
   rejectOperatorUnderstanding: (understandingId: string, reason?: string) => void
   expireOperatorUnderstanding: (understandingId: string) => void
   suppressUnderstandingSourceSignal: (signalId: string) => void
+  setPresentationPersonalizationEnabled: (enabled: boolean) => void
+  saveResolvedPresentationProfile: (
+    profile: PresentationProfile,
+    audit: PresentationAdaptationAuditEvent[],
+    registryVersion: string,
+  ) => void
+  setPresentationOverride: (override: PresentationOverride) => void
+  savePresentationOverrides: (overrides: PresentationOverride[]) => void
+  removePresentationOverride: (overrideId: string) => void
+  restoreNeutralPresentation: () => void
 }
 
 function timelineSignature(entry: Omit<TimelineEntry, 'id' | 'createdAt'>): string {
@@ -779,6 +802,73 @@ export function useVault(): UseVaultReturn {
     })
   }, [])
 
+  const setPresentationPersonalizationEnabled = useCallback((enabled: boolean) => {
+    setData((prev) => {
+      if (!prev) return prev
+      if (enabled && !canMutatePresentation(prev)) return prev
+      return { ...prev, presentationPersonalizationEnabled: enabled }
+    })
+  }, [])
+
+  const saveResolvedPresentationProfile = useCallback((
+    profile: PresentationProfile,
+    audit: PresentationAdaptationAuditEvent[],
+    registryVersion: string,
+  ) => {
+    setData((prev) => {
+      if (!prev) return prev
+      return {
+        ...prev,
+        presentationProfile: profile,
+        presentationAdaptationAudit: [...(prev.presentationAdaptationAudit ?? []), ...audit],
+        presentationMappingRegistryVersion: registryVersion,
+      }
+    })
+  }, [])
+
+  const setPresentationOverride = useCallback((override: PresentationOverride) => {
+    setData((prev) => {
+      if (!prev || !canMutatePresentation(prev, override.targetSurface)) return prev
+      const existing = (prev.presentationOverrides ?? []).find((item) => item.id === override.id)
+      if (!existing) {
+        return { ...prev, presentationOverrides: [...(prev.presentationOverrides ?? []), override] }
+      }
+      return {
+        ...prev,
+        presentationOverrides: (prev.presentationOverrides ?? []).map((item) => item.id === override.id ? override : item),
+      }
+    })
+  }, [])
+
+  const removePresentationOverride = useCallback((overrideId: string) => {
+    setData((prev) => {
+      if (!prev) return prev
+      return {
+        ...prev,
+        presentationOverrides: (prev.presentationOverrides ?? []).filter((override) => override.id !== overrideId),
+      }
+    })
+  }, [])
+
+  const savePresentationOverrides = useCallback((overrides: PresentationOverride[]) => {
+    setData((prev) => {
+      if (!prev || !canMutatePresentation(prev)) return prev
+      const permitted = overrides.filter((override) => canMutatePresentation(prev, override.targetSurface))
+      return { ...prev, presentationOverrides: permitted }
+    })
+  }, [])
+
+  const restoreNeutralPresentation = useCallback(() => {
+    setData((prev) => {
+      if (!prev) return prev
+      return {
+        ...prev,
+        presentationOverrides: [],
+        presentationPersonalizationEnabled: false,
+      }
+    })
+  }, [])
+
   return {
     vaultState, data, passphrase, error, saving, setData,
     createVault, unlock, lock, reset,
@@ -799,5 +889,11 @@ export function useVault(): UseVaultReturn {
     rejectOperatorUnderstanding,
     expireOperatorUnderstanding,
     suppressUnderstandingSourceSignal,
+    setPresentationPersonalizationEnabled,
+    saveResolvedPresentationProfile,
+    setPresentationOverride,
+    savePresentationOverrides,
+    removePresentationOverride,
+    restoreNeutralPresentation,
   }
 }
