@@ -1,4 +1,4 @@
-import { normalizePersonalData } from './localData'
+import { migrateToLatest } from './SchemaVersion'
 import type { PersonalData } from './localData'
 import type { RecoveryAuditEvent } from './types/recovery'
 
@@ -75,16 +75,21 @@ export function addRecoveryAuditEvent(data: PersonalData, event: RecoveryAuditEv
   return { ...data, recoveryAudit: [...existing, event].slice(0, 100) }
 }
 
+export function hasLegacyRecoveryAudit(): boolean {
+  return localStorage.getItem('imos.recovery.audit.v1') !== null
+}
+
+export function clearLegacyRecoveryAudit(): void {
+  localStorage.removeItem('imos.recovery.audit.v1')
+}
+
 export function migrateLegacyRecoveryAudit(data: PersonalData): PersonalData {
   const LEGACY_AUDIT_KEY = 'imos.recovery.audit.v1'
   const raw = localStorage.getItem(LEGACY_AUDIT_KEY)
   if (!raw) return data
   try {
     const legacy = JSON.parse(raw) as unknown[]
-    if (!Array.isArray(legacy)) {
-      localStorage.removeItem(LEGACY_AUDIT_KEY)
-      return data
-    }
+    if (!Array.isArray(legacy)) throw new Error('Legacy recovery audit is malformed.')
     const valid = legacy.filter((e): e is RecoveryAuditEvent => Boolean(
       e
       && typeof e === 'object'
@@ -93,12 +98,11 @@ export function migrateLegacyRecoveryAudit(data: PersonalData): PersonalData {
       && typeof (e as Record<string, unknown>).createdAt === 'string'
       && typeof (e as Record<string, unknown>).detail === 'string',
     ))
-    localStorage.removeItem(LEGACY_AUDIT_KEY)
+    if (valid.length !== legacy.length) throw new Error('Legacy recovery audit contains invalid records.')
     const existing = data.recoveryAudit ?? []
     return { ...data, recoveryAudit: [...existing, ...valid].slice(0, 100) }
-  } catch {
-    localStorage.removeItem(LEGACY_AUDIT_KEY)
-    return data
+  } catch (reason) {
+    throw reason instanceof Error ? reason : new Error('Legacy recovery audit migration failed.')
   }
 }
 
@@ -177,7 +181,7 @@ export async function testRecovery(value: unknown, passphrase: string): Promise<
 export async function restoreBackup(value: unknown, passphrase: string): Promise<PersonalData> {
   const backup = await verifyBackupPackage(value)
   const recovered = await decryptEnvelope(backup.vault, passphrase)
-  const migrated = normalizePersonalData(recovered)
+  const migrated = migrateToLatest(recovered)
   if (!migrated || migrated.version !== 1) throw new Error('Migrated vault is invalid.')
   const previous = localStorage.getItem(VAULT_KEY)
   const candidate = await encryptVault(migrated, passphrase)
