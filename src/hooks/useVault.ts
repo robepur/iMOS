@@ -29,6 +29,12 @@ import {
   expireUnderstanding as expireUnderstandingReview,
   suppressSourceSignal as suppressReviewSourceSignal,
 } from '../services/UnderstandingReviewService'
+import { isCognitionEnabled, isFeatureSurfacePermitted } from '../services/CognitionConsentService'
+
+function canMutateUnderstandingReview(data: PersonalData): boolean {
+  return isCognitionEnabled(data.cognitionConsent)
+    && isFeatureSurfacePermitted(data.cognitionConsent, 'understanding_dashboard')
+}
 
 export type VaultState = 'setup' | 'locked' | 'unlocked'
 
@@ -697,7 +703,7 @@ export function useVault(): UseVaultReturn {
     reviewAudit: UnderstandingReviewEvent[],
   ) => {
     setData((prev) => {
-      if (!prev) return prev
+      if (!prev || !canMutateUnderstandingReview(prev)) return prev
       return {
         ...prev,
         operatorUnderstandings: understandings,
@@ -709,7 +715,7 @@ export function useVault(): UseVaultReturn {
 
   const confirmOperatorUnderstanding = useCallback((understandingId: string) => {
     setData((prev) => {
-      if (!prev) return prev
+      if (!prev || !canMutateUnderstandingReview(prev)) return prev
       return {
         ...prev,
         operatorUnderstandings: confirmUnderstandingReview(prev.operatorUnderstandings ?? [], understandingId),
@@ -719,7 +725,7 @@ export function useVault(): UseVaultReturn {
 
   const correctOperatorUnderstanding = useCallback((understandingId: string, correctedStatement: string, reason?: string) => {
     setData((prev) => {
-      if (!prev) return prev
+      if (!prev || !canMutateUnderstandingReview(prev)) return prev
       return {
         ...prev,
         operatorUnderstandings: correctUnderstandingReview(
@@ -734,7 +740,7 @@ export function useVault(): UseVaultReturn {
 
   const rejectOperatorUnderstanding = useCallback((understandingId: string, reason?: string) => {
     setData((prev) => {
-      if (!prev) return prev
+      if (!prev || !canMutateUnderstandingReview(prev)) return prev
       const result = rejectUnderstandingReview(
         prev.operatorUnderstandings ?? [],
         understandingId,
@@ -751,7 +757,7 @@ export function useVault(): UseVaultReturn {
 
   const expireOperatorUnderstanding = useCallback((understandingId: string) => {
     setData((prev) => {
-      if (!prev) return prev
+      if (!prev || !canMutateUnderstandingReview(prev)) return prev
       return {
         ...prev,
         operatorUnderstandings: expireUnderstandingReview(prev.operatorUnderstandings ?? [], understandingId),
@@ -761,7 +767,7 @@ export function useVault(): UseVaultReturn {
 
   const suppressUnderstandingSourceSignal = useCallback((signalId: string) => {
     setData((prev) => {
-      if (!prev) return prev
+      if (!prev || !canMutateUnderstandingReview(prev)) return prev
       return {
         ...prev,
         cognitiveSignals: suppressReviewSourceSignal(prev.cognitiveSignals ?? [], signalId),
