@@ -216,7 +216,7 @@ export default function App() {
   const profile = data.presentationProfile
   const briefingPresentation = profile ? resolveSurfacePresentation(profile, 'briefing') : undefined
   const reviewPresentation = profile ? resolveSurfacePresentation(profile, 'review') : undefined
-  const missionPresentation = profile ? resolveSurfacePresentation(profile, 'missions') : undefined
+  const missionPresentation = profile ? resolveSurfacePresentation(profile, 'mission_planning') : undefined
 
   const stateItems = [
     ['Executive State', mode === 'focus' ? 'Focused' : 'Aware'],
