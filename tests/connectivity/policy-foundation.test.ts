@@ -112,16 +112,52 @@ describe('Build 017 connectivity policy foundation', () => {
     expect(decision).toMatchObject({ allowed: false, reason: 'origin_not_allowed' })
   })
 
+  it('mixed-case hostname is canonicalized and allowed', () => {
+    const registry = makeRegistry()
+    const decision = evaluateConnectivityPolicy(makeRequest({ url: 'https://API.Example.Com/v1/items' }), registry.snapshot())
+    expect(decision.allowed).toBe(true)
+  })
+
+  it('trailing-dot hostname is canonicalized and allowed', () => {
+    const registry = makeRegistry()
+    const decision = evaluateConnectivityPolicy(makeRequest({ url: 'https://api.example.com./v1/items' }), registry.snapshot())
+    expect(decision.allowed).toBe(true)
+  })
+
+  it('unicode hostname resolves via punycode and denies if undeclared', () => {
+    const registry = makeRegistry()
+    const decision = evaluateConnectivityPolicy(makeRequest({ url: 'https://bücher.example/v1/items' }), registry.snapshot())
+    expect(decision).toMatchObject({ allowed: false, reason: 'origin_not_allowed' })
+  })
+
+  it('punycode hostname denies if undeclared', () => {
+    const registry = makeRegistry()
+    const decision = evaluateConnectivityPolicy(makeRequest({ url: 'https://xn--bcher-kva.example/v1/items' }), registry.snapshot())
+    expect(decision).toMatchObject({ allowed: false, reason: 'origin_not_allowed' })
+  })
+
   it('wrong protocol denies', () => {
     const registry = makeRegistry()
     const decision = evaluateConnectivityPolicy(makeRequest({ url: 'http://api.example.com/v1/items' }), registry.snapshot())
     expect(decision).toMatchObject({ allowed: false, reason: 'origin_not_allowed' })
   })
 
+  it('encoded user-information syntax denies', () => {
+    const registry = makeRegistry()
+    const decision = evaluateConnectivityPolicy(makeRequest({ url: 'https://user%3Apass@api.example.com/v1/items' }), registry.snapshot())
+    expect(decision).toMatchObject({ allowed: false, reason: 'url_contains_credentials' })
+  })
+
   it('wrong port denies', () => {
     const registry = makeRegistry()
     const decision = evaluateConnectivityPolicy(makeRequest({ url: 'https://api.example.com:9443/v1/items' }), registry.snapshot())
     expect(decision).toMatchObject({ allowed: false, reason: 'port_not_allowed' })
+  })
+
+  it('empty path is normalized and denied when not declared', () => {
+    const registry = makeRegistry()
+    const decision = evaluateConnectivityPolicy(makeRequest({ url: 'https://api.example.com' }), registry.snapshot())
+    expect(decision).toMatchObject({ allowed: false, reason: 'path_not_allowed' })
   })
 
   it('undeclared path denies', () => {
@@ -139,6 +175,12 @@ describe('Build 017 connectivity policy foundation', () => {
   it('encoded bypass attempts deny', () => {
     const registry = makeRegistry()
     const decision = evaluateConnectivityPolicy(makeRequest({ url: 'https://api.example.com/v1/%2e%2e/secret' }), registry.snapshot())
+    expect(decision).toMatchObject({ allowed: false, reason: 'path_traversal_detected' })
+  })
+
+  it('double encoded traversal denies', () => {
+    const registry = makeRegistry()
+    const decision = evaluateConnectivityPolicy(makeRequest({ url: 'https://api.example.com/v1/%252e%252e/secret' }), registry.snapshot())
     expect(decision).toMatchObject({ allowed: false, reason: 'path_traversal_detected' })
   })
 
@@ -172,6 +214,12 @@ describe('Build 017 connectivity policy foundation', () => {
     expect(decision).toMatchObject({ allowed: false, reason: 'invalid_url' })
   })
 
+  it('malformed percent encoding denies', () => {
+    const registry = makeRegistry()
+    const decision = evaluateConnectivityPolicy(makeRequest({ url: 'https://api.example.com/v1/items%ZZ' }), registry.snapshot())
+    expect(decision).toMatchObject({ allowed: false, reason: 'malformed_percent_encoding' })
+  })
+
   it('URLs containing credentials deny', () => {
     const registry = makeRegistry()
     const decision = evaluateConnectivityPolicy(makeRequest({ url: 'https://user:pass@api.example.com/v1/items' }), registry.snapshot())
@@ -184,10 +232,88 @@ describe('Build 017 connectivity policy foundation', () => {
     expect(decision).toMatchObject({ allowed: false, reason: 'protocol_relative_url' })
   })
 
+  it('unsupported protocols deny', () => {
+    const registry = makeRegistry()
+    const decision = evaluateConnectivityPolicy(makeRequest({ url: 'ftp://api.example.com/v1/items' }), registry.snapshot())
+    expect(decision).toMatchObject({ allowed: false, reason: 'unsupported_protocol' })
+  })
+
+  it('fragments deny', () => {
+    const registry = makeRegistry()
+    const decision = evaluateConnectivityPolicy(makeRequest({ url: 'https://api.example.com/v1/items#fragment' }), registry.snapshot())
+    expect(decision).toMatchObject({ allowed: false, reason: 'url_contains_fragment' })
+  })
+
+  it('backslashes deny', () => {
+    const registry = makeRegistry()
+    const decision = evaluateConnectivityPolicy(makeRequest({ url: 'https://api.example.com\\v1\\items' }), registry.snapshot())
+    expect(decision).toMatchObject({ allowed: false, reason: 'invalid_url' })
+  })
+
+  it('leading whitespace denies', () => {
+    const registry = makeRegistry()
+    const decision = evaluateConnectivityPolicy(makeRequest({ url: ' https://api.example.com/v1/items' }), registry.snapshot())
+    expect(decision).toMatchObject({ allowed: false, reason: 'invalid_url' })
+  })
+
+  it('control characters deny', () => {
+    const registry = makeRegistry()
+    const decision = evaluateConnectivityPolicy(makeRequest({ url: `https://api.example.com/v1/items${String.fromCharCode(0)}` }), registry.snapshot())
+    expect(decision).toMatchObject({ allowed: false, reason: 'invalid_url' })
+  })
+
+  it('localhost denies by default', () => {
+    const registry = makeRegistry()
+    const decision = evaluateConnectivityPolicy(makeRequest({ url: 'https://localhost/v1/items' }), registry.snapshot())
+    expect(decision).toMatchObject({ allowed: false, reason: 'local_address_not_allowed' })
+  })
+
+  it('loopback IPv4 denies by default', () => {
+    const registry = makeRegistry()
+    const decision = evaluateConnectivityPolicy(makeRequest({ url: 'https://127.0.0.1/v1/items' }), registry.snapshot())
+    expect(decision).toMatchObject({ allowed: false, reason: 'local_address_not_allowed' })
+  })
+
+  it('private IPv4 denies by default', () => {
+    const registry = makeRegistry()
+    const decision = evaluateConnectivityPolicy(makeRequest({ url: 'https://10.1.2.3/v1/items' }), registry.snapshot())
+    expect(decision).toMatchObject({ allowed: false, reason: 'local_address_not_allowed' })
+  })
+
+  it('link-local IPv4 denies by default', () => {
+    const registry = makeRegistry()
+    const decision = evaluateConnectivityPolicy(makeRequest({ url: 'https://169.254.1.9/v1/items' }), registry.snapshot())
+    expect(decision).toMatchObject({ allowed: false, reason: 'local_address_not_allowed' })
+  })
+
+  it('ipv6 loopback denies by default', () => {
+    const registry = makeRegistry()
+    const decision = evaluateConnectivityPolicy(makeRequest({ url: 'https://[::1]/v1/items' }), registry.snapshot())
+    expect(decision).toMatchObject({ allowed: false, reason: 'local_address_not_allowed' })
+  })
+
+  it('ipv6 link-local denies by default', () => {
+    const registry = makeRegistry()
+    const decision = evaluateConnectivityPolicy(makeRequest({ url: 'https://[fe80::1]/v1/items' }), registry.snapshot())
+    expect(decision).toMatchObject({ allowed: false, reason: 'local_address_not_allowed' })
+  })
+
+  it('ipv4 integer-like host denies by default', () => {
+    const registry = makeRegistry()
+    const decision = evaluateConnectivityPolicy(makeRequest({ url: 'https://2130706433/v1/items' }), registry.snapshot())
+    expect(decision).toMatchObject({ allowed: false, reason: 'local_address_not_allowed' })
+  })
+
   it('unsafe redirects deny', () => {
     const registry = makeRegistry()
     const decision = evaluateRedirectTarget(makeRequest(), 'https://api.example.com/v1/private', registry.snapshot())
     expect(decision).toMatchObject({ allowed: false, reason: 'path_not_allowed' })
+  })
+
+  it('redirect to different origin denies', () => {
+    const registry = makeRegistry()
+    const decision = evaluateRedirectTarget(makeRequest(), 'https://other.example.com/v1/items', registry.snapshot())
+    expect(decision).toMatchObject({ allowed: false, reason: 'origin_not_allowed' })
   })
 
   it('redirect target is evaluated independently', () => {
@@ -216,6 +342,34 @@ describe('Build 017 connectivity policy foundation', () => {
     })
     expect(first.ok).toBe(true)
     expect(second).toMatchObject({ ok: false, reason: 'duplicate_adapter' })
+  })
+
+  it('malformed origin fails registration', () => {
+    const registry = new ConnectivityPolicyRegistry()
+    registry.registerAdapter({
+      id: 'adapter:test',
+      version: '1.0.0',
+      enabled: true,
+      policyVersion: '1.0.0',
+      registryVersion: '1.0.0',
+    })
+    const result = registry.registerCapability({
+      id: 'cap:test',
+      version: '1.0.0',
+      adapterId: 'adapter:test',
+      enabled: true,
+      rules: [{
+        id: 'r1',
+        purpose: 'external_read',
+        dataClassifications: ['externally_sourced'],
+        origins: [{ protocol: 'https', hostname: 'evil host' }],
+        pathPatterns: [{ kind: 'exact', path: '/v1/items' }],
+        methods: ['GET'],
+        redirectPolicy: { mode: 'deny' },
+        timeoutPolicy: { defaultMs: 1000, maxMs: 2000 },
+      }],
+    })
+    expect(result).toMatchObject({ ok: false, reason: 'malformed_capability' })
   })
 
   it('conflicting declarations fail', () => {
@@ -256,6 +410,52 @@ describe('Build 017 connectivity policy foundation', () => {
       ],
     })
     expect(result.ok).toBe(false)
+  })
+
+  it('cross-capability conflicting declarations fail', () => {
+    const registry = new ConnectivityPolicyRegistry()
+    const adapter = registry.registerAdapter({
+      id: 'adapter:test',
+      version: '1.0.0',
+      enabled: true,
+      policyVersion: '1.0.0',
+      registryVersion: '1.0.0',
+    })
+    expect(adapter.ok).toBe(true)
+    const first = registry.registerCapability({
+      id: 'cap:first',
+      version: '1.0.0',
+      adapterId: 'adapter:test',
+      enabled: true,
+      rules: [{
+        id: 'r1',
+        purpose: 'external_read',
+        dataClassifications: ['externally_sourced'],
+        origins: [{ protocol: 'https', hostname: 'api.example.com' }],
+        pathPatterns: [{ kind: 'exact', path: '/v1/items' }],
+        methods: ['GET'],
+        redirectPolicy: { mode: 'deny' },
+        timeoutPolicy: { defaultMs: 1000, maxMs: 2000 },
+      }],
+    })
+    expect(first.ok).toBe(true)
+    const second = registry.registerCapability({
+      id: 'cap:second',
+      version: '1.0.0',
+      adapterId: 'adapter:test',
+      enabled: true,
+      rules: [{
+        id: 'r2',
+        purpose: 'external_read',
+        dataClassifications: ['externally_sourced'],
+        origins: [{ protocol: 'https', hostname: 'api.example.com' }],
+        pathPatterns: [{ kind: 'exact', path: '/v1/items' }],
+        methods: ['GET'],
+        redirectPolicy: { mode: 'deny' },
+        timeoutPolicy: { defaultMs: 1000, maxMs: 2000 },
+      }],
+    })
+    expect(second).toMatchObject({ ok: false, reason: 'registry_conflict' })
   })
 
   it('malformed registry fails closed', () => {
@@ -304,6 +504,16 @@ describe('Build 017 connectivity policy foundation', () => {
     const audit = buildConnectivityAuditEvent(descriptor, decision)
     expect(audit.redactedUrl).toBe('https://api.example.com/v1/items')
     expect(audit.redactedUrl?.includes('secret-token')).toBe(false)
+    expect(audit.redactedUrl?.includes('?')).toBe(false)
+    expect(audit.redactedUrl?.includes('#')).toBe(false)
+  })
+
+  it('audit redaction handles malformed credential-like input', () => {
+    const registry = makeRegistry()
+    const descriptor = makeRequest({ url: 'https://api.example.com/v1/items?authorization=Bearer%20abc' })
+    const decision = evaluateConnectivityPolicy(descriptor, registry.snapshot())
+    const malformedAudit = buildConnectivityAuditEvent({ ...descriptor, url: 'https://user:pass@api.example.com/v1/items#frag' }, decision)
+    expect(malformedAudit.redactedUrl).toBe('invalid-url')
   })
 
   it('policy results are deterministic', () => {
@@ -342,6 +552,22 @@ describe('Build 017 connectivity policy foundation', () => {
     }).toThrow()
     const second = registry.snapshot()
     expect(second.adapters[0].enabled).toBe(before)
+  })
+
+  it('mutation after registration does not alter internal state', () => {
+    const registry = new ConnectivityPolicyRegistry()
+    const adapter = {
+      id: 'adapter:test',
+      version: '1.0.0',
+      enabled: true,
+      policyVersion: '1.0.0',
+      registryVersion: '1.0.0',
+    }
+    const registration = registry.registerAdapter(adapter)
+    expect(registration.ok).toBe(true)
+    adapter.enabled = false
+    const snapshot = registry.snapshot()
+    expect(snapshot.adapters[0].enabled).toBe(true)
   })
 
   it('no production endpoints are present', () => {

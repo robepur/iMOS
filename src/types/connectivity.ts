@@ -112,10 +112,12 @@ export type PolicyRejectionReason =
   | 'registry_invalid'
   | 'malformed_request'
   | 'invalid_url'
+  | 'malformed_percent_encoding'
   | 'unsupported_protocol'
   | 'protocol_relative_url'
   | 'url_contains_credentials'
   | 'url_contains_fragment'
+  | 'local_address_not_allowed'
   | 'unknown_adapter'
   | 'adapter_disabled'
   | 'unknown_capability'
@@ -212,4 +214,3 @@ export type ConnectivityAuditEvent = {
   registryVersion?: RegistryVersion
   cancellationState?: CancellationState
 }
-

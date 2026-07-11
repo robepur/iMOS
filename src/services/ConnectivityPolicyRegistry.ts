@@ -10,6 +10,10 @@ import type {
 
 const SEMVER = /^\d+\.\d+\.\d+$/
 
+function normalizeHostname(hostname: string): string {
+  return hostname.trim().toLowerCase().replace(/\.+$/g, '')
+}
+
 function freeze<T>(value: T): T {
   if (!value || typeof value !== 'object') return value
   const obj = value as Record<string, unknown>
@@ -74,6 +78,10 @@ function validateRule(rule: ConnectivityRule): boolean {
   if (rule.redirectPolicy.mode !== 'deny' && rule.redirectPolicy.mode !== 'revalidate') return false
   for (const origin of rule.origins) {
     if (!origin.hostname || typeof origin.hostname !== 'string') return false
+    const host = normalizeHostname(origin.hostname)
+    if (!host) return false
+    if (/[\u0000-\u001F\u007F\s\\/@]/.test(host)) return false
+    if (/^\*+$/.test(host)) return false
     if (origin.protocol !== 'https' && origin.protocol !== 'http') return false
     if (origin.port !== undefined && (!Number.isInteger(origin.port) || origin.port <= 0 || origin.port > 65535)) return false
   }
@@ -87,6 +95,33 @@ function validateRule(rule: ConnectivityRule): boolean {
     }
   }
   return true
+}
+
+function capabilitySignatures(capability: CapabilityDeclaration): Set<string> {
+  const signatures = new Set<string>()
+  for (const rule of capability.rules) {
+    for (const origin of rule.origins) {
+      for (const pattern of rule.pathPatterns) {
+        for (const method of rule.methods) {
+          const path = pattern.kind === 'exact' ? `exact:${pattern.path}` : `prefix:${pattern.pathPrefix}`
+          for (const dataClass of rule.dataClassifications) {
+            signatures.add(
+              [
+                rule.purpose,
+                dataClass,
+                origin.protocol,
+                normalizeHostname(origin.hostname),
+                origin.port ?? '',
+                method,
+                path,
+              ].join('|'),
+            )
+          }
+        }
+      }
+    }
+  }
+  return signatures
 }
 
 function isCapabilityMalformed(capability: CapabilityDeclaration): boolean {
@@ -134,6 +169,14 @@ export class ConnectivityPolicyRegistry {
     if (!this.adapters.has(capability.adapterId)) return { ok: false, reason: 'unknown_adapter' }
     if (isCapabilityMalformed(capability)) return { ok: false, reason: 'malformed_capability' }
     if (!SEMVER.test(capability.version)) return { ok: false, reason: 'invalid_version' }
+    const nextSignatures = capabilitySignatures(capability)
+    for (const existing of this.capabilities.values()) {
+      if (existing.adapterId !== capability.adapterId) continue
+      const existingSignatures = capabilitySignatures(existing)
+      for (const signature of nextSignatures) {
+        if (existingSignatures.has(signature)) return { ok: false, reason: 'registry_conflict' }
+      }
+    }
     this.capabilities.set(capability.id, capability)
     return { ok: true, capability: cloneCapability(capability) }
   }
@@ -193,4 +236,3 @@ export class ConnectivityPolicyRegistry {
 export function createConnectivityPolicyRegistry() {
   return new ConnectivityPolicyRegistry()
 }
-

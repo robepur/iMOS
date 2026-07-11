@@ -12,7 +12,70 @@ import type {
 import type { ConnectivityRegistrySnapshot } from '../types/connectivity'
 
 function normalizeHostname(hostname: string): string {
-  return hostname.trim().toLowerCase()
+  const trimmed = hostname.trim().toLowerCase().replace(/\.+$/g, '')
+  if (trimmed.startsWith('[') && trimmed.endsWith(']')) return trimmed.slice(1, -1)
+  return trimmed
+}
+
+function hasMalformedPercentEncoding(value: string): boolean {
+  for (let i = 0; i < value.length; i++) {
+    if (value[i] !== '%') continue
+    const a = value[i + 1]
+    const b = value[i + 2]
+    if (!a || !b) return true
+    if (!/[0-9a-f]/i.test(a) || !/[0-9a-f]/i.test(b)) return true
+  }
+  return false
+}
+
+function isIpv4Literal(hostname: string): boolean {
+  return /^\d+\.\d+\.\d+\.\d+$/.test(hostname)
+}
+
+function parseIpv4(hostname: string): number[] | null {
+  if (!isIpv4Literal(hostname)) return null
+  const parts = hostname.split('.').map(Number)
+  if (parts.length !== 4) return null
+  for (const part of parts) {
+    if (!Number.isInteger(part) || part < 0 || part > 255) return null
+  }
+  return parts
+}
+
+function isPrivateOrLocalIpv4(parts: number[]): boolean {
+  const [a, b] = parts
+  if (a === 10) return true
+  if (a === 127) return true
+  if (a === 0) return true
+  if (a === 169 && b === 254) return true
+  if (a === 172 && b >= 16 && b <= 31) return true
+  if (a === 192 && b === 168) return true
+  if (a === 100 && b >= 64 && b <= 127) return true
+  return false
+}
+
+function isPrivateOrLocalIpv6(hostname: string): boolean {
+  const host = hostname.toLowerCase()
+  if (host === '::1' || host === '::') return true
+  if (/^fe[89ab]/.test(host)) return true
+  if (host.startsWith('fc') || host.startsWith('fd')) return true
+  if (host.includes('.') && host.includes(':')) {
+    const ipv4Tail = host.slice(host.lastIndexOf(':') + 1)
+    const parsed = parseIpv4(ipv4Tail)
+    if (parsed && isPrivateOrLocalIpv4(parsed)) return true
+  }
+  return false
+}
+
+function isLocalAddress(hostname: string): boolean {
+  const host = normalizeHostname(hostname)
+  if (!host) return true
+  if (host === 'localhost' || host.endsWith('.localhost')) return true
+  if (/^(0x[0-9a-f]+|\d+)$/i.test(host)) return true
+  const ipv4 = parseIpv4(host)
+  if (ipv4 && isPrivateOrLocalIpv4(ipv4)) return true
+  if (host.includes(':') && isPrivateOrLocalIpv6(host)) return true
+  return false
 }
 
 function defaultPort(protocol: string): number {
@@ -55,7 +118,11 @@ function normalizeUrl(rawUrl: string): {
   reason: PolicyRejectionReason
 } {
   if (typeof rawUrl !== 'string' || rawUrl.trim().length === 0) return { ok: false, reason: 'malformed_request' }
+  if (rawUrl !== rawUrl.trim()) return { ok: false, reason: 'invalid_url' }
   if (rawUrl.trim().startsWith('//')) return { ok: false, reason: 'protocol_relative_url' }
+  if (/[\u0000-\u001F\u007F]/.test(rawUrl)) return { ok: false, reason: 'invalid_url' }
+  if (rawUrl.includes('\\')) return { ok: false, reason: 'invalid_url' }
+  if (hasMalformedPercentEncoding(rawUrl)) return { ok: false, reason: 'malformed_percent_encoding' }
   if (/\/(?:\.|%2e)(?:\.|%2e)?(?:\/|$)/i.test(rawUrl)) return { ok: false, reason: 'path_traversal_detected' }
   let url: URL
   try {
@@ -69,6 +136,8 @@ function normalizeUrl(rawUrl: string): {
   const normalized = normalizePath(url.pathname)
   if (!normalized.ok) return normalized
   const host = normalizeHostname(url.hostname)
+  if (!host) return { ok: false, reason: 'invalid_url' }
+  if (isLocalAddress(host)) return { ok: false, reason: 'local_address_not_allowed' }
   const port = url.port ? Number(url.port) : defaultPort(url.protocol)
   if (!Number.isInteger(port) || port <= 0) return { ok: false, reason: 'invalid_url' }
   return {
@@ -85,6 +154,13 @@ function matchesRule(
   normalizedPath: string,
   capability: CapabilityDeclaration,
 ): { ok: true; rule: ConnectivityRule } | { ok: false; reason: PolicyRejectionReason } {
+  const requestOrigin = new URL(normalizedOrigin)
+  const requestHost = normalizeHostname(requestOrigin.hostname)
+  const requestProtocol = requestOrigin.protocol.slice(0, -1)
+  const requestPort = requestOrigin.port
+    ? Number(requestOrigin.port)
+    : defaultPort(requestOrigin.protocol)
+
   const methodMatchesAny = capability.rules.some(rule => rule.methods.includes(descriptor.method))
   if (!methodMatchesAny) return { ok: false, reason: 'method_not_allowed' }
 
@@ -97,16 +173,15 @@ function matchesRule(
   const originMatchesAny = capability.rules.some((rule) =>
     rule.origins.some((origin) => {
       const allowedPort = origin.port ?? (origin.protocol === 'https' ? 443 : 80)
-      const expected = `${origin.protocol}://${normalizeHostname(origin.hostname)}:${allowedPort}`
-      return expected === normalizedOrigin
+      const allowedHost = normalizeHostname(origin.hostname)
+      return origin.protocol === requestProtocol && allowedHost === requestHost && allowedPort === requestPort
     }),
   )
   if (!originMatchesAny) {
-    const originUrl = new URL(normalizedOrigin)
     const hostnameProtocolMatch = capability.rules.some((rule) =>
       rule.origins.some((origin) =>
-        origin.protocol === originUrl.protocol.slice(0, -1)
-        && normalizeHostname(origin.hostname) === normalizeHostname(originUrl.hostname),
+        origin.protocol === requestProtocol
+        && normalizeHostname(origin.hostname) === requestHost,
       ),
     )
     if (hostnameProtocolMatch) return { ok: false, reason: 'port_not_allowed' }
@@ -119,8 +194,11 @@ function matchesRule(
     if (!rule.dataClassifications.includes(descriptor.dataClassification)) continue
     const originAllowed = rule.origins.some((origin) => {
       const allowedPort = origin.port ?? (origin.protocol === 'https' ? 443 : 80)
-      const expected = `${origin.protocol}://${normalizeHostname(origin.hostname)}:${allowedPort}`
-      return expected === normalizedOrigin
+      return (
+        origin.protocol === requestProtocol
+        && normalizeHostname(origin.hostname) === requestHost
+        && allowedPort === requestPort
+      )
     })
     if (!originAllowed) continue
     const pathAllowed = rule.pathPatterns.some((pattern) => {

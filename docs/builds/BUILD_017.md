@@ -75,14 +75,18 @@ No `PersonalData` schema or migration changes were introduced in Build 017.
 ## URL normalization and validation rules
 
 - Reject malformed URLs.
+- Reject malformed percent encoding.
 - Reject protocol-relative URLs.
 - Reject embedded credentials.
 - Reject URL fragments.
 - Reject unsupported protocols.
+- Reject control characters, leading/trailing whitespace, and backslash URL forms.
 - Normalize protocol/host/port/path before matching.
+- Canonicalize hostnames (case/trailing-dot normalization).
 - Exact hostname matching prevents prefix/suffix confusion.
 - Path traversal denied.
 - Encoded path-bypass attempts denied.
+- Local/private/link-local/loopback destinations are denied by default in Build 017.
 
 ## Redirect handling
 
@@ -140,6 +144,7 @@ Rollback is safe and data-compatible because Build 017 introduces only inert con
 - origin/protocol/port/path/method/purpose/data-classification enforcement
 - malformed/protocol-relative/credential URLs
 - traversal and encoded bypass attempts
+- adversarial hostname/IP/protocol/redirect input cases
 - redirect revalidation behavior
 - deterministic decisions and registry enumeration
 - audit redaction
@@ -189,4 +194,3 @@ Build 017 is complete when:
 ## Confirmation
 
 Build 017 contains no real networking transport, no real external request execution path, and no provider-specific integration runtime.
-
