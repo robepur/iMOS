@@ -285,7 +285,9 @@ export function confirmUnderstanding(
   understandings: OperatorUnderstanding[],
   understandingId: string,
   now?: Date,
+  consent?: CognitionConsent,
 ): OperatorUnderstanding[] {
+  if (!validateConsentForReview(consent).valid) return understandings
   const at = now ?? new Date()
   return understandings.map((u) => {
     if (u.id !== understandingId) return u
@@ -301,7 +303,9 @@ export function correctUnderstanding(
   correctedStatement: string,
   reason?: string,
   now?: Date,
+  consent?: CognitionConsent,
 ): OperatorUnderstanding[] {
+  if (!validateConsentForReview(consent).valid) return understandings
   const at = now ?? new Date()
   return understandings.map((u) => {
     if (u.id !== understandingId) return u
@@ -331,7 +335,9 @@ export function rejectUnderstanding(
   rejectedSignatures: string[],
   reason?: string,
   now?: Date,
+  consent?: CognitionConsent,
 ): { understandings: OperatorUnderstanding[]; rejectedSignatures: string[] } {
+  if (!validateConsentForReview(consent).valid) return { understandings, rejectedSignatures }
   const at = now ?? new Date()
   let signatureToReject: string | null = null
   const next = understandings.map((u) => {
@@ -356,7 +362,9 @@ export function expireUnderstanding(
   understandings: OperatorUnderstanding[],
   understandingId: string,
   now?: Date,
+  consent?: CognitionConsent,
 ): OperatorUnderstanding[] {
+  if (!validateConsentForReview(consent).valid) return understandings
   const at = now ?? new Date()
   return understandings.map((u) => {
     if (u.id !== understandingId) return u
@@ -369,7 +377,9 @@ export function suppressSourceSignal(
   signals: CognitiveSignal[],
   signalId: string,
   now?: Date,
+  consent?: CognitionConsent,
 ): CognitiveSignal[] {
+  if (!validateConsentForReview(consent).valid) return signals
   const at = now ?? new Date()
   return signals.map((signal) => {
     if (signal.id !== signalId) return signal
