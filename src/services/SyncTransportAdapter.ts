@@ -61,7 +61,7 @@ function ensureJsonContentType(value: string | null): boolean {
 type TransportResponse = SyncUploadAcknowledgment | SyncDownloadResult | { kind: 'conflict'; conflict: unknown }
 
 export class SyncTransportAdapter {
-  private readonly registry = new ConnectivityPolicyRegistry()
+  private registry = new ConnectivityPolicyRegistry()
   private readonly audit: SyncTransportAuditEvent[] = []
   private endpointBaseUrl: string | null = null
   private controlState: SyncOperatorControlState = {
@@ -71,8 +71,23 @@ export class SyncTransportAdapter {
   }
 
   constructor() {
+    this.refreshPolicyRegistry()
+  }
+
+  private refreshPolicyRegistry(localPort?: number): void {
+    this.registry = new ConnectivityPolicyRegistry()
     this.registry.registerAdapter(SYNC_ADAPTER)
-    this.registry.registerCapability(SYNC_CAPABILITY)
+    const capability: CapabilityDeclaration = {
+      ...SYNC_CAPABILITY,
+      rules: SYNC_CAPABILITY.rules.map((rule) => ({
+        ...rule,
+        origins: rule.origins.map((origin) => ({
+          ...origin,
+          port: localPort ?? origin.port,
+        })),
+      })),
+    }
+    this.registry.registerCapability(capability)
   }
 
   private pushAudit(event: Omit<SyncTransportAuditEvent, 'id' | 'createdAt'>): void {
@@ -91,6 +106,8 @@ export class SyncTransportAdapter {
       throw new Error('Sync endpoint must be local-only (http://localhost or http://127.0.0.1).')
     }
     this.endpointBaseUrl = `${parsed.protocol}//${parsed.hostname}${parsed.port ? `:${parsed.port}` : ''}`
+    const explicitPort = parsed.port.length > 0 ? Number(parsed.port) : 80
+    this.refreshPolicyRegistry(explicitPort)
     this.controlState = {
       ...this.controlState,
       localEndpointConfigured: true,
@@ -105,6 +122,7 @@ export class SyncTransportAdapter {
 
   clearEndpoint(): void {
     this.endpointBaseUrl = null
+    this.refreshPolicyRegistry()
     this.controlState = {
       ...this.controlState,
       localEndpointConfigured: false,
