@@ -5,6 +5,7 @@
  */
 
 import type { PersonalData } from '../localData'
+import type { PresentationProfile } from '../types/presentation'
 import { isCognitionEnabled } from './CognitionConsentService'
 import { analyze as analyzeSignals } from './CognitiveSignalEngine'
 import { createProposedUnderstanding } from './UnderstandingReviewService'
@@ -12,6 +13,13 @@ import {
   resolvePresentationProfile,
   PRESENTATION_MAPPING_REGISTRY_VERSION,
 } from './AdaptivePresentationEngine'
+
+// Compare profiles excluding the generatedAt timestamp (which is non-deterministic)
+function stablePresentationKey(profile: PresentationProfile | undefined): string {
+  if (!profile) return ''
+  const { generatedAt: _g, ...rest } = profile
+  return JSON.stringify(rest)
+}
 
 export type OrchestrationInput = {
   data: PersonalData
@@ -91,7 +99,7 @@ export function runRosieOrchestration(input: OrchestrationInput): OrchestrationR
   })
 
   const presentationChanged =
-    JSON.stringify(candidate.presentationProfile) !== JSON.stringify(presentationResult.profile)
+    stablePresentationKey(candidate.presentationProfile) !== stablePresentationKey(presentationResult.profile)
     || candidate.presentationMappingRegistryVersion !== PRESENTATION_MAPPING_REGISTRY_VERSION
   if (presentationChanged) {
     candidate = {
