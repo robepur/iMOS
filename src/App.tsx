@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
-import { BrainCircuit, Clock3, KeyRound, ListChecks, Lock, LockKeyhole, Network, Route, ShieldCheck, Zap } from 'lucide-react'
+import { Clock3, KeyRound, ListChecks, Lock, LockKeyhole, Network, Route, ShieldCheck, Zap } from 'lucide-react'
 import { useVault } from './hooks/useVault'
 import { usePriorities } from './hooks/usePriorities'
 import { useSecrets } from './hooks/useSecrets'
@@ -8,33 +8,27 @@ import { useKnowledgeGraph } from './hooks/useKnowledgeGraph'
 import { useUnderstanding } from './hooks/useUnderstanding'
 import { RosieEngine } from './services/RosieEngine'
 import { UnderstandingEngine } from './services/UnderstandingEngine'
-import { analyze as analyzeSignals } from './services/CognitiveSignalEngine'
-import { isCognitionEnabled } from './services/CognitionConsentService'
-import { createProposedUnderstanding } from './services/UnderstandingReviewService'
 import {
   applyOperatorOverride,
   buildNeutralRestorationAudit,
   getNeutralPresentationProfile,
   PRESENTATION_MAPPING_REGISTRY_VERSION,
-  removeOperatorOverride,
-  resolvePresentationProfile,
   resolveSurfacePresentation,
 } from './services/AdaptivePresentationEngine'
+import { runRosieOrchestration } from './services/RosieOrchestrationService'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import VaultGate from './features/vault/VaultGate'
 import DataPanel from './features/vault/DataPanel'
 import { Arrival, Brief, FocusView, Reflection, TimelineItem } from './features/arrival/OperatingLoop'
 import PriorityConsole from './features/priorities/PriorityConsole'
-import { CognitionConsentPanel, CognitiveSignalsPanel, PersonalizationControlCenter, UnderstandingReviewCenter } from './features/cognition'
 
-const ReviewCenter           = lazy(() => import('./features/review/ReviewCenter'))
-const RecoveryConsole        = lazy(() => import('./features/recovery/RecoveryConsole'))
-const SecretsConsole         = lazy(() => import('./features/secrets/SecretsConsole'))
-const ReflectionHistory      = lazy(() => import('./features/reflection/ReflectionHistory'))
-const RecommendationCenter   = lazy(() => import('./features/rosie/RecommendationCenter'))
-const KnowledgeGraphViewer   = lazy(() => import('./features/knowledge/KnowledgeGraphViewer'))
-const UnderstandingDashboard = lazy(() => import('./features/understanding/UnderstandingDashboard'))
-const MissionPlanner         = lazy(() => import('./features/missions/MissionPlanner'))
+const ReviewCenter = lazy(() => import('./features/review/ReviewCenter'))
+const RecoveryConsole = lazy(() => import('./features/recovery/RecoveryConsole'))
+const SecretsConsole = lazy(() => import('./features/secrets/SecretsConsole'))
+const ReflectionHistory = lazy(() => import('./features/reflection/ReflectionHistory'))
+const KnowledgeGraphViewer = lazy(() => import('./features/knowledge/KnowledgeGraphViewer'))
+const MissionPlanner = lazy(() => import('./features/missions/MissionPlanner'))
+const RosieCenter = lazy(() => import('./features/rosie/RosieCenter'))
 
 type Mode = 'arrival' | 'brief' | 'focus' | 'reflection'
 
@@ -42,124 +36,48 @@ export default function App() {
   const vault = useVault()
   const { activePriorities, primary, criticalCount, overdueCount } = usePriorities(vault.data)
   const secrets = useSecrets(vault.data)
-  const { active: recs, patterns, criticalCount: recCritical } = useRecommendations(vault.data)
+  const { active: recs, criticalCount: recCritical } = useRecommendations(vault.data)
   const { graph, getStats } = useKnowledgeGraph(vault.data)
   const { understanding } = useUnderstanding(vault.data)
 
   const [mode, setMode] = useState<Mode>('arrival')
-  const [showDataPanel, setShowDataPanel]           = useState(false)
-  const [showRecovery, setShowRecovery]             = useState(false)
-  const [showSecrets, setShowSecrets]               = useState(false)
-  const [showPriorities, setShowPriorities]         = useState(false)
-  const [showReflections, setShowReflections]       = useState(false)
-  const [showReview, setShowReview]                 = useState(false)
-  const [showRosie, setShowRosie]                   = useState(false)
-  const [showKnowledge, setShowKnowledge]           = useState(false)
-  const [showUnderstanding, setShowUnderstanding]   = useState(false)
-  const [showMissions, setShowMissions]             = useState(false)
-  const [showCognition, setShowCognition]           = useState(false)
-  const [showSignals, setShowSignals]               = useState(false)
-  const [showUnderstandingReview, setShowUnderstandingReview] = useState(false)
-  const [showPersonalization, setShowPersonalization] = useState(false)
+  const [showDataPanel, setShowDataPanel] = useState(false)
+  const [showRecovery, setShowRecovery] = useState(false)
+  const [showSecrets, setShowSecrets] = useState(false)
+  const [showPriorities, setShowPriorities] = useState(false)
+  const [showReflections, setShowReflections] = useState(false)
+  const [showReview, setShowReview] = useState(false)
+  const [showKnowledge, setShowKnowledge] = useState(false)
+  const [showMissions, setShowMissions] = useState(false)
+  const [showRosieCenter, setShowRosieCenter] = useState(false)
 
   const date = useMemo(() => new Intl.DateTimeFormat('en-US', { weekday: 'long', month: 'long', day: 'numeric' }).format(new Date()), [])
 
-  // Run cognitive signal analysis when vault data changes (consent must be enabled)
-  const lastSignalAnalysis = useRef<string | null>(null)
+  const lastOrchestrationKey = useRef<string | null>(null)
   useEffect(() => {
     if (!vault.data) return
     const consent = vault.data.cognitionConsent
-    if (!isCognitionEnabled(consent)) {
-      lastSignalAnalysis.current = null
-      return
-    }
-    const enabledConsent = consent!
-    // Deterministic fingerprint of every approved Build 014 input. Cognitive
-    // signal persistence is intentionally excluded to prevent save loops.
-    const dataKey = JSON.stringify({
+    const key = JSON.stringify({
       consent: {
-        status: enabledConsent.status,
-        updatedAt: enabledConsent.updatedAt,
-        categories: enabledConsent.permittedDataCategories,
-        surfaces: enabledConsent.permittedFeatureSurfaces,
+        status: consent?.status,
+        updatedAt: consent?.updatedAt,
+        categories: consent?.permittedDataCategories ?? [],
+        surfaces: consent?.permittedFeatureSurfaces ?? [],
       },
       commitments: vault.data.commitments.map((item) => [item.id, item.status, item.due]),
       decisions: vault.data.decisions.map((item) => [item.id, item.status, item.context, item.createdAt]),
       reflections: vault.data.reflections.map((item) => [item.id, item.createdAt]),
       recommendations: (vault.data.recommendations ?? []).map((item) => [item.id, item.dismissed, item.createdAt]),
       missions: (vault.data.missionPlans ?? []).map((item) => [item.id, item.status, item.updatedAt, item.createdAt]),
-    })
-    if (lastSignalAnalysis.current === dataKey) return
-    lastSignalAnalysis.current = dataKey
-    const result = analyzeSignals(vault.data, consent)
-    if (!result.blocked) {
-      vault.saveCognitiveSignals(result.signals, result.registryVersion)
-    }
-  }, [vault])
-
-  const lastPresentationResolution = useRef<string | null>(null)
-  useEffect(() => {
-    if (!vault.data) return
-    const key = JSON.stringify({
-      consentStatus: vault.data.cognitionConsent?.status,
-      consentUpdatedAt: vault.data.cognitionConsent?.updatedAt,
-      enabled: vault.data.presentationPersonalizationEnabled ?? false,
-      understandings: (vault.data.operatorUnderstandings ?? []).map((item) => [
-        item.id, item.state, item.personalizationEligible, item.expiresAt, item.updatedAt, item.ruleId, item.ruleVersion,
-      ]),
+      understandings: (vault.data.operatorUnderstandings ?? []).map((item) => [item.id, item.state, item.personalizationEligible, item.expiresAt, item.updatedAt, item.ruleId, item.ruleVersion]),
       overrides: (vault.data.presentationOverrides ?? []).map((item) => [item.id, item.setting, item.value, item.updatedAt]),
+      personalizationEnabled: vault.data.presentationPersonalizationEnabled ?? false,
     })
-    if (lastPresentationResolution.current === key) return
-    lastPresentationResolution.current = key
-    const result = resolvePresentationProfile({
-      consent: vault.data.cognitionConsent,
-      enabled: vault.data.presentationPersonalizationEnabled ?? false,
-      understandings: vault.data.operatorUnderstandings ?? [],
-      overrides: vault.data.presentationOverrides ?? [],
-    })
-    vault.saveResolvedPresentationProfile(result.profile, result.audit, PRESENTATION_MAPPING_REGISTRY_VERSION)
-  }, [vault])
-
-  const lastUnderstandingConversion = useRef<string | null>(null)
-  useEffect(() => {
-    if (!vault.data) return
-    const consent = vault.data.cognitionConsent
-    if (!isCognitionEnabled(consent)) {
-      lastUnderstandingConversion.current = null
-      return
-    }
-    const proposedSignals = (vault.data.cognitiveSignals ?? []).filter((signal) => signal.status === 'proposed')
-    const conversionKey = JSON.stringify({
-      consentUpdatedAt: consent?.updatedAt,
-      signals: proposedSignals.map((signal) => [signal.id, signal.signature, signal.status, signal.updatedAt]),
-      rejected: vault.data.rejectedUnderstandingSignatures ?? [],
-    })
-    if (lastUnderstandingConversion.current === conversionKey) return
-    lastUnderstandingConversion.current = conversionKey
-
-    let understandings = vault.data.operatorUnderstandings ?? []
-    let rejectedSignatures = vault.data.rejectedUnderstandingSignatures ?? []
-    let reviewAudit = vault.data.understandingReviewAudit ?? []
-
-    for (const signal of proposedSignals) {
-      const conversion = createProposedUnderstanding({
-        signal,
-        consent,
-        existingUnderstandings: understandings,
-        rejectedSignatures,
-        reviewAudit,
-      })
-      understandings = conversion.understandings
-      rejectedSignatures = conversion.rejectedSignatures
-      reviewAudit = conversion.reviewAudit
-    }
-
-    const changed =
-      understandings.length !== (vault.data.operatorUnderstandings ?? []).length
-      || rejectedSignatures.length !== (vault.data.rejectedUnderstandingSignatures ?? []).length
-      || reviewAudit.length !== (vault.data.understandingReviewAudit ?? []).length
-    if (changed) {
-      vault.saveOperatorUnderstandings(understandings, rejectedSignatures, reviewAudit)
+    if (lastOrchestrationKey.current === key) return
+    lastOrchestrationKey.current = key
+    const result = runRosieOrchestration({ data: vault.data })
+    if (result.changed) {
+      vault.saveOrchestrationResult(result.data)
     }
   }, [vault])
 
@@ -205,18 +123,19 @@ export default function App() {
   }
 
   const { data } = vault
-  const healthSignals = RosieEngine.getHealthSignals(data)
   const morningBrief = RosieEngine.getMorningBrief(data)
   const eveningSummary = RosieEngine.getEveningSummary(data)
   const openCommitments = data.commitments.filter((c) => c.status === 'open').length
   const graphStats = getStats()
-  const driftCritical = understanding?.drift.hasCritical ?? false
   const morningObservations = understanding ? UnderstandingEngine.getMorningObservations(understanding) : []
   const eveningObservations = understanding ? UnderstandingEngine.getEveningObservations(understanding) : []
   const profile = data.presentationProfile
   const briefingPresentation = profile ? resolveSurfacePresentation(profile, 'briefing') : undefined
   const reviewPresentation = profile ? resolveSurfacePresentation(profile, 'review') : undefined
   const missionPresentation = profile ? resolveSurfacePresentation(profile, 'mission_planning') : undefined
+  const proposedSignalsCount = (data.cognitiveSignals ?? []).filter((signal) => signal.status === 'proposed').length
+  const proposedUnderstandingsCount = (data.operatorUnderstandings ?? []).filter((item) => item.state === 'proposed').length
+  const rosieHasAlerts = recs.length > 0 || proposedSignalsCount > 0 || proposedUnderstandingsCount > 0
 
   const stateItems = [
     ['Executive State', mode === 'focus' ? 'Focused' : 'Aware'],
@@ -233,35 +152,10 @@ export default function App() {
         <div><p className="eyebrow">INDIVIDUAL MISSION OPERATING SYSTEM</p><h1>iMOS</h1></div>
         <div className="topActions">
           <button className="utilityButton" onClick={() => setShowReview(true)}><ShieldCheck size={16} /> REVIEW</button>
-          <button className={`utilityButton${recs.length > 0 ? ' utilityButton--alert' : ''}`} onClick={() => setShowRosie(true)}>
+          <button className={`utilityButton${rosieHasAlerts ? ' utilityButton--alert' : ''}`} onClick={() => setShowRosieCenter(true)}>
             <Zap size={16} /> ROSIE{recs.length > 0 ? ` (${recs.length})` : ''}
           </button>
-          <button className={`utilityButton${driftCritical ? ' utilityButton--alert' : ''}`} onClick={() => setShowUnderstanding(true)}>
-            <BrainCircuit size={16} /> UNDERSTAND
-          </button>
           <button className="utilityButton" onClick={() => setShowMissions(true)}><Route size={16} /> MISSION</button>
-          <button className="utilityButton" onClick={() => setShowCognition(true)}><BrainCircuit size={16} /> COGNITION</button>
-          {isCognitionEnabled(data.cognitionConsent) && (
-            <button
-              className={`utilityButton${(data.cognitiveSignals ?? []).filter((s) => s.status === 'proposed').length > 0 ? ' utilityButton--alert' : ''}`}
-              onClick={() => setShowSignals(true)}
-            >
-              <BrainCircuit size={16} /> SIGNALS{(data.cognitiveSignals ?? []).filter((s) => s.status === 'proposed').length > 0 ? ` (${(data.cognitiveSignals ?? []).filter((s) => s.status === 'proposed').length})` : ''}
-            </button>
-          )}
-          {isCognitionEnabled(data.cognitionConsent) && (
-            <button
-              className={`utilityButton${(data.operatorUnderstandings ?? []).filter((u) => u.state === 'proposed').length > 0 ? ' utilityButton--alert' : ''}`}
-              onClick={() => setShowUnderstandingReview(true)}
-            >
-              <BrainCircuit size={16} /> UNDERSTANDINGS{(data.operatorUnderstandings ?? []).filter((u) => u.state === 'proposed').length > 0 ? ` (${(data.operatorUnderstandings ?? []).filter((u) => u.state === 'proposed').length})` : ''}
-            </button>
-          )}
-          {isCognitionEnabled(data.cognitionConsent) && (
-            <button className="utilityButton" onClick={() => setShowPersonalization(true)}>
-              <BrainCircuit size={16} /> PERSONALIZATION
-            </button>
-          )}
           <button className="utilityButton" onClick={() => setShowKnowledge(true)}><Network size={16} /> KNOWLEDGE</button>
           <button className="utilityButton" onClick={() => setShowPriorities(true)}><ListChecks size={16} /> PRIORITIES</button>
           <button className="utilityButton" onClick={() => setShowSecrets(true)}><KeyRound size={16} /> SECRETS</button>
@@ -271,16 +165,15 @@ export default function App() {
         </div>
       </header>
 
-      {showDataPanel && <DataPanel onClose={() => setShowDataPanel(false)} onOpenRecovery={() => setShowRecovery(true)} onReset={vault.reset} />}
+      {showDataPanel && <DataPanel onClose={() => setShowDataPanel(false)} onOpenRecovery={() => setShowRecovery(true)} onReset={vault.reset} onBackup={vault.exportVaultBackup} />}
 
       <ErrorBoundary>
         <Suspense fallback={null}>
           {showPriorities && <PriorityConsole priorities={data.priorities} onChange={vault.updatePriorities} onClose={() => setShowPriorities(false)} />}
           {showSecrets && <SecretsConsole records={secrets.records} onChange={vault.updateSecrets} onClose={() => setShowSecrets(false)} />}
-          {showRecovery && <RecoveryConsole onClose={() => setShowRecovery(false)} onRestore={vault.restoreVault} onRotate={vault.rotateVaultPassphrase} />}
+          {showRecovery && <RecoveryConsole data={data} onClose={() => setShowRecovery(false)} onRestore={vault.restoreVault} onRotate={vault.rotateVaultPassphrase} onAudit={vault.recordRecoveryAuditEvent} />}
           {showReflections && <ReflectionHistory reflections={data.reflections} onDelete={vault.deleteReflection} onClose={() => setShowReflections(false)} />}
           {showReview && <ReviewCenter data={data} onDeleteReflection={vault.deleteReflection} onClose={() => setShowReview(false)} presentation={reviewPresentation} />}
-          {showRosie && <RecommendationCenter recs={recs} patterns={patterns} healthSignals={healthSignals} onComplete={vault.completeRecommendation} onDismiss={vault.dismissRecommendation} onSnooze={vault.snoozeRecommendation} onClose={() => setShowRosie(false)} />}
           {showMissions && (
             <MissionPlanner
               data={data}
@@ -298,40 +191,19 @@ export default function App() {
             />
           )}
           {showKnowledge && <KnowledgeGraphViewer graph={graph} onClose={() => setShowKnowledge(false)} />}
-          {showUnderstanding && understanding && <UnderstandingDashboard understanding={understanding} onClose={() => setShowUnderstanding(false)} />}
-          {showCognition && data.cognitionConsent && (
-            <CognitionConsentPanel
-              consent={data.cognitionConsent}
-              onUpdate={vault.updateCognitionConsent}
-              onClose={() => setShowCognition(false)}
-            />
-          )}
-          {showSignals && (
-            <CognitiveSignalsPanel
-              signals={data.cognitiveSignals ?? []}
-              onSuppress={vault.suppressCognitiveSignal}
-              onClose={() => setShowSignals(false)}
-            />
-          )}
-          {showUnderstandingReview && (
-            <UnderstandingReviewCenter
-              understandings={data.operatorUnderstandings ?? []}
-              signals={data.cognitiveSignals ?? []}
-              onConfirm={vault.confirmOperatorUnderstanding}
-              onCorrect={vault.correctOperatorUnderstanding}
-              onReject={vault.rejectOperatorUnderstanding}
-              onExpire={vault.expireOperatorUnderstanding}
-              onSuppressSignal={vault.suppressUnderstandingSourceSignal}
-              onClose={() => setShowUnderstandingReview(false)}
-            />
-          )}
-          {showPersonalization && data.cognitionConsent && data.presentationProfile && (
-            <PersonalizationControlCenter
-              consent={data.cognitionConsent}
-              enabled={data.presentationPersonalizationEnabled ?? false}
-              profile={data.presentationProfile}
-              overrides={data.presentationOverrides ?? []}
-              onEnableChanged={vault.setPresentationPersonalizationEnabled}
+          {showRosieCenter && (
+            <RosieCenter
+              data={data}
+              recs={recs}
+              onClose={() => setShowRosieCenter(false)}
+              onSuppressSignal={vault.suppressCognitiveSignal}
+              onConfirmUnderstanding={vault.confirmOperatorUnderstanding}
+              onCorrectUnderstanding={vault.correctOperatorUnderstanding}
+              onRejectUnderstanding={vault.rejectOperatorUnderstanding}
+              onExpireUnderstanding={vault.expireOperatorUnderstanding}
+              onSuppressUnderstandingSignal={vault.suppressUnderstandingSourceSignal}
+              onUpdateCognitionConsent={vault.updateCognitionConsent}
+              onEnablePersonalizationChanged={vault.setPresentationPersonalizationEnabled}
               onOverrideChanged={(setting, value) => {
                 const targetSurface = setting === 'planningSequenceMode'
                   ? 'missions'
@@ -341,7 +213,7 @@ export default function App() {
                 const next = applyOperatorOverride(data.presentationOverrides ?? [], { targetSurface, setting, value })
                 vault.savePresentationOverrides(next)
               }}
-              onOverrideRemoved={(overrideId) => vault.savePresentationOverrides(removeOperatorOverride(data.presentationOverrides ?? [], overrideId))}
+              onOverrideRemoved={vault.removePresentationOverride}
               onRestoreNeutral={() => {
                 vault.restoreNeutralPresentation()
                 vault.saveResolvedPresentationProfile(
@@ -350,7 +222,9 @@ export default function App() {
                   PRESENTATION_MAPPING_REGISTRY_VERSION,
                 )
               }}
-              onClose={() => setShowPersonalization(false)}
+              onCompleteRec={vault.completeRecommendation}
+              onDismissRec={vault.dismissRecommendation}
+              onSnoozeRec={vault.snoozeRecommendation}
             />
           )}
         </Suspense>

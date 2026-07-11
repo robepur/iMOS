@@ -25,8 +25,9 @@ export type {
 export type {
   VaultEnvelope,
   BackupPackage,
-  RecoveryAuditEvent,
 } from '../vault'
+
+export type { RecoveryAuditEvent } from './recovery'
 
 export type {
   CognitionDataCategory,

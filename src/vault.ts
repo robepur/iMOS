@@ -1,8 +1,9 @@
+import { migrateToLatest } from './SchemaVersion'
 import type { PersonalData } from './localData'
+import type { RecoveryAuditEvent } from './types/recovery'
 
 const VAULT_KEY = 'imos.vault.v1'
 const LEGACY_KEY = 'imos.personal.v1'
-const RECOVERY_AUDIT_KEY = 'imos.recovery.audit.v1'
 const ITERATIONS = 310_000
 
 export type VaultEnvelope = {
@@ -22,13 +23,6 @@ export type BackupPackage = {
   createdAt: string
   checksum: string
   vault: VaultEnvelope
-}
-
-export type RecoveryAuditEvent = {
-  id: string
-  type: 'backup-created' | 'backup-verified' | 'recovery-tested' | 'vault-restored' | 'passphrase-rotated' | 'recovery-failed'
-  createdAt: string
-  detail: string
 }
 
 function bytesToBase64(bytes: Uint8Array): string {
@@ -54,7 +48,7 @@ async function deriveKey(passphrase: string, salt: Uint8Array<ArrayBuffer>, iter
     material,
     { name: 'AES-GCM', length: 256 },
     false,
-    ['encrypt', 'decrypt']
+    ['encrypt', 'decrypt'],
   )
 }
 
@@ -68,17 +62,47 @@ function assertEnvelope(value: unknown): asserts value is VaultEnvelope {
   }
 }
 
-function audit(type: RecoveryAuditEvent['type'], detail: string): void {
-  const current = getRecoveryAudit()
-  const event: RecoveryAuditEvent = { id: crypto.randomUUID(), type, detail, createdAt: new Date().toISOString() }
-  localStorage.setItem(RECOVERY_AUDIT_KEY, JSON.stringify([event, ...current].slice(0, 100)))
+function audit(type: RecoveryAuditEvent['type'], detail: string): RecoveryAuditEvent {
+  return { id: crypto.randomUUID(), type, detail, createdAt: new Date().toISOString() }
 }
 
-export function getRecoveryAudit(): RecoveryAuditEvent[] {
+export function getRecoveryAudit(data: PersonalData): RecoveryAuditEvent[] {
+  return data.recoveryAudit ?? []
+}
+
+export function addRecoveryAuditEvent(data: PersonalData, event: RecoveryAuditEvent): PersonalData {
+  const existing = data.recoveryAudit ?? []
+  return { ...data, recoveryAudit: [event, ...existing].slice(0, 100) }
+}
+
+export function hasLegacyRecoveryAudit(): boolean {
+  return localStorage.getItem('imos.recovery.audit.v1') !== null
+}
+
+export function clearLegacyRecoveryAudit(): void {
+  localStorage.removeItem('imos.recovery.audit.v1')
+}
+
+export function migrateLegacyRecoveryAudit(data: PersonalData): PersonalData {
+  const LEGACY_AUDIT_KEY = 'imos.recovery.audit.v1'
+  const raw = localStorage.getItem(LEGACY_AUDIT_KEY)
+  if (!raw) return data
   try {
-    return JSON.parse(localStorage.getItem(RECOVERY_AUDIT_KEY) ?? '[]') as RecoveryAuditEvent[]
-  } catch {
-    return []
+    const legacy = JSON.parse(raw) as unknown[]
+    if (!Array.isArray(legacy)) throw new Error('Legacy recovery audit is malformed.')
+    const valid = legacy.filter((e): e is RecoveryAuditEvent => Boolean(
+      e
+      && typeof e === 'object'
+      && typeof (e as Record<string, unknown>).id === 'string'
+      && typeof (e as Record<string, unknown>).type === 'string'
+      && typeof (e as Record<string, unknown>).createdAt === 'string'
+      && typeof (e as Record<string, unknown>).detail === 'string',
+    ))
+    if (valid.length !== legacy.length) throw new Error('Legacy recovery audit contains invalid records.')
+    const existing = data.recoveryAudit ?? []
+    return { ...data, recoveryAudit: [...existing, ...valid].slice(0, 100) }
+  } catch (reason) {
+    throw reason instanceof Error ? reason : new Error('Legacy recovery audit migration failed.')
   }
 }
 
@@ -129,7 +153,6 @@ export async function createBackupPackage(): Promise<BackupPackage> {
   assertEnvelope(vault)
   const backup: BackupPackage = { format: 'imos-backup', version: 1, createdAt: new Date().toISOString(), checksum: '', vault }
   backup.checksum = await sha256(JSON.stringify(backup.vault))
-  audit('backup-created', 'Encrypted backup package created.')
   return backup
 }
 
@@ -140,29 +163,43 @@ export async function verifyBackupPackage(value: unknown): Promise<BackupPackage
   assertEnvelope(backup.vault)
   const expected = await sha256(JSON.stringify(backup.vault))
   if (expected !== backup.checksum) throw new Error('Backup checksum verification failed.')
-  audit('backup-verified', 'Backup structure and checksum verified.')
   return backup as BackupPackage
 }
 
-export async function testRecovery(value: unknown, passphrase: string): Promise<{ records: number; createdAt: string }> {
+export async function testRecovery(value: unknown, passphrase: string): Promise<{ records: number; createdAt: string; auditEvent: RecoveryAuditEvent }> {
   try {
     const backup = await verifyBackupPackage(value)
     const recovered = await decryptEnvelope(backup.vault, passphrase)
     const records = Object.values(recovered).reduce((total, item) => total + (Array.isArray(item) ? item.length : 0), 0)
-    audit('recovery-tested', `Recovery test passed with ${records} records.`)
-    return { records, createdAt: backup.createdAt }
+    const auditEvent = audit('recovery-tested', `Recovery test passed with ${records} records.`)
+    return { records, createdAt: backup.createdAt, auditEvent }
   } catch (reason) {
-    audit('recovery-failed', reason instanceof Error ? reason.message : 'Recovery test failed.')
-    throw reason
+    throw reason instanceof Error ? reason : new Error('Recovery test failed.')
   }
 }
 
 export async function restoreBackup(value: unknown, passphrase: string): Promise<PersonalData> {
   const backup = await verifyBackupPackage(value)
   const recovered = await decryptEnvelope(backup.vault, passphrase)
-  localStorage.setItem(VAULT_KEY, JSON.stringify(backup.vault))
-  audit('vault-restored', `Vault restored from backup created ${backup.createdAt}.`)
-  return recovered
+  const migrated = migrateToLatest(recovered)
+  if (!migrated || migrated.version !== 1) throw new Error('Migrated vault is invalid.')
+  const previous = localStorage.getItem(VAULT_KEY)
+  const candidate = await encryptVault(migrated, passphrase)
+  const verified = await decryptEnvelope(candidate, passphrase)
+  if (!verified || verified.version !== 1) {
+    if (previous !== null) localStorage.setItem(VAULT_KEY, previous)
+    else localStorage.removeItem(VAULT_KEY)
+    throw new Error('Vault candidate verification failed after restore.')
+  }
+  try {
+    localStorage.setItem(VAULT_KEY, JSON.stringify(candidate))
+  } catch {
+    if (previous !== null) localStorage.setItem(VAULT_KEY, previous)
+    else localStorage.removeItem(VAULT_KEY)
+    throw new Error('Vault commit failed. Previous vault preserved.')
+  }
+  const event = audit('vault-restored', `Vault restored from backup created ${backup.createdAt}.`)
+  return addRecoveryAuditEvent(migrated, event)
 }
 
 export async function rotatePassphrase(data: PersonalData, currentPassphrase: string, newPassphrase: string): Promise<void> {
@@ -170,7 +207,6 @@ export async function rotatePassphrase(data: PersonalData, currentPassphrase: st
   const replacement = await encryptVault(data, newPassphrase)
   await decryptEnvelope(replacement, newPassphrase)
   localStorage.setItem(VAULT_KEY, JSON.stringify(replacement))
-  audit('passphrase-rotated', 'Vault re encrypted and verified with new passphrase material.')
 }
 
 export function readLegacyData(): PersonalData | null {

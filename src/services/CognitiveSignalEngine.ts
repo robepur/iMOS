@@ -58,11 +58,9 @@ function buildSignature(
   ruleVersion: string,
   signalType: CognitiveSignalType,
   evidenceIds: string[],
-  windowStart: string,
-  windowEnd: string,
 ): string {
   const sorted = [...evidenceIds].sort().join(',')
-  return `${ruleId}|${ruleVersion}|${signalType}|${sorted}|${windowStart}|${windowEnd}`
+  return `${ruleId}|${ruleVersion}|${signalType}|${sorted}`
 }
 
 // ---------------------------------------------------------------------------
@@ -99,7 +97,7 @@ function analyzeOverdueCommitmentRecurrence(
     : undefined
   return {
     signalType: rule.outputSignalType,
-    plainLanguageStatement: `${overdue.length} commitments have been overdue repeatedly in the last ${rule.observationWindowDays} days.`,
+    plainLanguageStatement: `${overdue.length} commitments are currently overdue within the last ${rule.observationWindowDays} days.`,
     dataCategory: 'commitments',
     evidenceIds,
     evidenceCount: evidenceIds.length,
@@ -170,7 +168,7 @@ function analyzeRepeatedDecisionReopening(
     : undefined
   return {
     signalType: rule.outputSignalType,
-    plainLanguageStatement: `${unresolved.length} decisions remain unresolved in the last ${rule.observationWindowDays} days.`,
+    plainLanguageStatement: `${unresolved.length} decisions remain open within the last ${rule.observationWindowDays} days.`,
     dataCategory: 'decisions',
     evidenceIds,
     evidenceCount: evidenceIds.length,
@@ -240,7 +238,7 @@ function analyzeReviewTimingPreference(
     : undefined
   return {
     signalType: rule.outputSignalType,
-    plainLanguageStatement: `${actions.length} review actions observed in the last ${rule.observationWindowDays} days. Timing distribution recorded.`,
+    plainLanguageStatement: `${actions.length} review actions observed in the last ${rule.observationWindowDays} days.`,
     dataCategory: 'review_history',
     evidenceIds,
     evidenceCount: evidenceIds.length,
@@ -347,8 +345,6 @@ export function analyzeRule(
     rule.ruleVersion,
     partial.signalType,
     partial.evidenceIds,
-    partial.observationWindowStart,
-    partial.observationWindowEnd,
   )
 
   const signal: CognitiveSignal = {
@@ -469,8 +465,16 @@ export function analyze(
   }
 
   const newSignals: CognitiveSignal[] = []
+  const latestRulesMap = new Map<string, DeterministicRule>()
 
   for (const rule of RULE_REGISTRY) {
+    const existing = latestRulesMap.get(rule.ruleId)
+    if (!existing || rule.ruleVersion > existing.ruleVersion) {
+      latestRulesMap.set(rule.ruleId, rule)
+    }
+  }
+
+  for (const rule of latestRulesMap.values()) {
     const signal = analyzeRule(rule.ruleId, rule.ruleVersion, data, consent!, analysisTime)
     if (signal) newSignals.push(signal)
   }
@@ -496,8 +500,6 @@ export function createSignal(
     partial.deterministicRuleVersion,
     partial.signalType,
     partial.evidenceIds,
-    partial.observationWindowStart,
-    partial.observationWindowEnd,
   )
   return {
     ...partial,

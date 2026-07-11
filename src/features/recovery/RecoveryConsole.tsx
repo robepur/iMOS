@@ -1,14 +1,18 @@
-﻿import { useState } from 'react'
+import { useState } from 'react'
 import { FileCheck2, FlaskConical, KeyRound, ShieldCheck, Upload, X } from 'lucide-react'
-import { getRecoveryAudit, restoreBackup, rotatePassphrase, testRecovery, verifyBackupPackage } from '../../vault'
+import type { PersonalData } from '../../localData'
+import type { RecoveryAuditEvent } from '../../types/recovery'
+import { getRecoveryAudit, testRecovery, verifyBackupPackage } from '../../vault'
 
 type RecoveryAction = 'verify' | 'test' | 'restore' | 'rotate' | null
 type RecoveryStatus = { tone: 'success' | 'error' | 'neutral'; title: string; detail: string }
 
-export default function RecoveryConsole({ onClose, onRestore, onRotate }: {
+export default function RecoveryConsole({ data, onClose, onRestore, onRotate, onAudit }: {
+  data: PersonalData
   onClose: () => void
   onRestore: (backup: unknown, passphrase: string) => Promise<void>
   onRotate: (current: string, replacement: string) => Promise<void>
+  onAudit: (event: RecoveryAuditEvent) => void
 }) {
   const [action, setAction] = useState<RecoveryAction>(null)
   const [backup, setBackup] = useState<unknown>(null)
@@ -19,7 +23,7 @@ export default function RecoveryConsole({ onClose, onRestore, onRotate }: {
   const [confirmPassphrase, setConfirmPassphrase] = useState('')
   const [working, setWorking] = useState(false)
   const [status, setStatus] = useState<RecoveryStatus>({ tone: 'neutral', title: 'Recovery ready', detail: 'Select an action to begin.' })
-  const audit = getRecoveryAudit().slice(0, 4)
+  const audit = getRecoveryAudit(data).slice(0, 4)
 
   async function selectBackup(file: File | undefined) {
     if (!file) return
@@ -39,6 +43,12 @@ export default function RecoveryConsole({ onClose, onRestore, onRotate }: {
   async function run(task: () => Promise<void>) {
     setWorking(true)
     try { await task() } catch (reason) {
+      onAudit({
+        id: crypto.randomUUID(),
+        type: 'recovery-failed',
+        createdAt: new Date().toISOString(),
+        detail: 'Recovery operation failed closed.',
+      })
       setStatus({ tone: 'error', title: 'Operation failed', detail: reason instanceof Error ? reason.message : 'The recovery operation failed closed.' })
     } finally { setWorking(false) }
   }
@@ -46,6 +56,12 @@ export default function RecoveryConsole({ onClose, onRestore, onRotate }: {
   async function verify() {
     if (!backup) throw new Error('Select an iMOS backup first.')
     const verified = await verifyBackupPackage(backup)
+    onAudit({
+      id: crypto.randomUUID(),
+      type: 'backup-verified',
+      createdAt: new Date().toISOString(),
+      detail: 'Backup structure and checksum verified.',
+    })
     setStatus({ tone: 'success', title: 'Backup verified', detail: `Created ${new Date(verified.createdAt).toLocaleString()}. Checksum and package controls passed.` })
   }
 
@@ -53,6 +69,7 @@ export default function RecoveryConsole({ onClose, onRestore, onRotate }: {
     if (!backup) throw new Error('Select an iMOS backup first.')
     if (!backupPassphrase) throw new Error('Enter the backup passphrase.')
     const result = await testRecovery(backup, backupPassphrase)
+    onAudit(result.auditEvent)
     setStatus({ tone: 'success', title: 'Recovery test passed', detail: `${result.records} records decrypted and validated in memory. The active vault was not changed.` })
   }
 
@@ -151,5 +168,3 @@ export default function RecoveryConsole({ onClose, onRestore, onRotate }: {
     </section>
   )
 }
-
-

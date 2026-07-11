@@ -17,6 +17,7 @@ import type {
   OperatorUnderstanding,
   UnderstandingReviewEvent,
 } from '../types/cognitive'
+import type { RecoveryAuditEvent } from '../types/recovery'
 import type {
   PresentationAdaptationAuditEvent,
   PresentationOverride,
@@ -73,6 +74,8 @@ export type UseVaultReturn = {
   saveReflection: (accomplished: string, remember: string, tomorrow: string) => void
   deleteReflection: (id: string) => void
   restoreVault: (backup: unknown, backupPassphrase: string) => Promise<void>
+  exportVaultBackup: () => Promise<void>
+  recordRecoveryAuditEvent: (event: RecoveryAuditEvent) => void
   rotateVaultPassphrase: (current: string, replacement: string) => Promise<void>
   dismissRecommendation: (rec: RosieRecommendation) => void
   snoozeRecommendation: (rec: RosieRecommendation, days: number) => void
@@ -114,6 +117,7 @@ export type UseVaultReturn = {
   savePresentationOverrides: (overrides: PresentationOverride[]) => void
   removePresentationOverride: (overrideId: string) => void
   restoreNeutralPresentation: () => void
+  saveOrchestrationResult: (data: PersonalData) => void
 }
 
 function timelineSignature(entry: Omit<TimelineEntry, 'id' | 'createdAt'>): string {
@@ -291,11 +295,34 @@ export function useVault(): UseVaultReturn {
     setPassphrase(backupPassphrase)
   }, [])
 
+  const recordRecoveryAuditEvent = useCallback((event: RecoveryAuditEvent) => {
+    setData((prev) => prev ? ({
+      ...prev,
+      recoveryAudit: [event, ...(prev.recoveryAudit ?? [])].slice(0, 100),
+    }) : prev)
+  }, [])
+
+  const exportVaultBackup = useCallback(async () => {
+    await VaultService.exportBackup()
+    recordRecoveryAuditEvent({
+      id: createId('recovery-audit'),
+      type: 'backup-created',
+      createdAt: new Date().toISOString(),
+      detail: 'Encrypted backup package created.',
+    })
+  }, [recordRecoveryAuditEvent])
+
   const rotateVaultPassphrase = useCallback(async (current: string, replacement: string) => {
     if (!data) return
     await VaultService.rotatePassphrase(data, current, replacement)
     setPassphrase(replacement)
-  }, [data])
+    recordRecoveryAuditEvent({
+      id: createId('recovery-audit'),
+      type: 'passphrase-rotated',
+      createdAt: new Date().toISOString(),
+      detail: 'Vault re encrypted and verified with new passphrase material.',
+    })
+  }, [data, recordRecoveryAuditEvent])
 
   const dismissRecommendation = useCallback((rec: RosieRecommendation) => {
     setData((prev) => {
@@ -869,13 +896,17 @@ export function useVault(): UseVaultReturn {
     })
   }, [])
 
+  const saveOrchestrationResult = useCallback((result: PersonalData) => {
+    setData(result)
+  }, [])
+
   return {
     vaultState, data, passphrase, error, saving, setData,
     createVault, unlock, lock, reset,
     addTimelineEntry, updatePriorities, updateSecrets,
     addCommitment, addDecision, toggleCommitment, toggleDecision,
     completePrimaryPriority, saveReflection, deleteReflection,
-    restoreVault, rotateVaultPassphrase,
+    restoreVault, exportVaultBackup, recordRecoveryAuditEvent, rotateVaultPassphrase,
     dismissRecommendation, snoozeRecommendation, completeRecommendation,
     syncUnderstandingState,
     saveMissionPlan, setMissionPlanStatus, updateMissionPlan, updateMissionStepStatus, updateMissionStep,
@@ -895,5 +926,6 @@ export function useVault(): UseVaultReturn {
     savePresentationOverrides,
     removePresentationOverride,
     restoreNeutralPresentation,
+    saveOrchestrationResult,
   }
 }

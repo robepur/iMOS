@@ -12,6 +12,7 @@ import type {
   PresentationOverride,
   PresentationProfile,
 } from './types/presentation'
+import type { RecoveryAuditEvent } from './types/recovery'
 
 export type RosieRecommendation = {
   id: string
@@ -206,6 +207,7 @@ export type PersonalData = {
   presentationAdaptationAudit?: PresentationAdaptationAuditEvent[]
   /** Phase 3 Build 016: mapping registry version used for resolved profile. */
   presentationMappingRegistryVersion?: string
+  recoveryAudit?: RecoveryAuditEvent[]
 }
 
 export type UnderstandingState = {
@@ -543,6 +545,18 @@ export function normalizePersonalData(raw: PersonalData): PersonalData {
     presentationMappingRegistryVersion: typeof raw.presentationMappingRegistryVersion === 'string'
       ? raw.presentationMappingRegistryVersion
       : undefined,
+    recoveryAudit: Array.isArray(raw.recoveryAudit)
+      ? raw.recoveryAudit
+          .filter((event): event is RecoveryAuditEvent => Boolean(
+            event
+            && typeof event === 'object'
+            && typeof (event as Record<string, unknown>).id === 'string'
+            && typeof (event as Record<string, unknown>).type === 'string'
+            && typeof (event as Record<string, unknown>).createdAt === 'string'
+            && typeof (event as Record<string, unknown>).detail === 'string'
+          ))
+          .slice(0, 100)
+      : [],
   }
 }
 
@@ -655,6 +669,7 @@ export function createInitialData(): PersonalData {
     presentationProfile: createDefaultPresentationProfile(),
     presentationOverrides: [],
     presentationAdaptationAudit: [],
+    recoveryAudit: [],
   }
 }
 
