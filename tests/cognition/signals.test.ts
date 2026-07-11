@@ -418,3 +418,26 @@ describe('security boundary: no raw values in signals', () => {
     expect(signalJson).not.toContain('SECRET_PASSWORD')
   })
 })
+
+
+describe('CognitiveSignalEngine feature surface gate', () => {
+  it('blocks analysis when the understanding dashboard surface is not permitted', () => {
+    const consent = makeConsent(true)
+    consent.permittedFeatureSurfaces = consent.permittedFeatureSurfaces.filter(
+      (surface) => surface !== 'understanding_dashboard',
+    )
+    const result = analyze(makeBaseData(), consent, new Date('2025-06-01T12:00:00Z'))
+    expect(result.blocked).toBe(true)
+    expect(result.signals).toHaveLength(0)
+    expect(result.blockReason).toContain('understanding dashboard')
+  })
+
+  it('allows analysis when the understanding dashboard surface is permitted', () => {
+    const result = analyze(
+      makeBaseData(),
+      makeConsent(true),
+      new Date('2025-06-01T12:00:00Z'),
+    )
+    expect(result.blocked).toBe(false)
+  })
+})
