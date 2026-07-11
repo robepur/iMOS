@@ -26,6 +26,6 @@ describe('Network boundary security scan', () => {
     const source = fs.readFileSync(path.join(root, 'src/services/DeviceIdentityService.ts'), 'utf8')
     expect(source.includes('exportKey(\'pkcs8\'')).toBe(false)
     expect(source.includes('exportKey("pkcs8"')).toBe(false)
-    expect(source.includes('privateKeyLeak')).toBe(false)
+    expect(source.includes('localStorage')).toBe(false)
   })
 })

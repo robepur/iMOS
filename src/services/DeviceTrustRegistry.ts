@@ -278,6 +278,10 @@ export class DeviceTrustRegistry {
     const next = this.records.get(replacementDeviceId)
     if (!previous || !next) return { ok: false, reason: 'device_not_found' }
     if (next.status !== 'active') return { ok: false, reason: 'replacement_device_not_active' }
+    if (replacedDeviceId === replacementDeviceId) return { ok: false, reason: 'replacement_device_same_as_source' }
+    if (this.wouldCreateReplacementCycle(replacedDeviceId, replacementDeviceId)) {
+      return { ok: false, reason: 'replacement_cycle_detected' }
+    }
     const transitioned = this.transition(replacedDeviceId, 'replaced', now, 'device_replaced', 'local_operator')
     if (!transitioned.ok) return transitioned
     const updatedPrev = {
@@ -299,6 +303,19 @@ export class DeviceTrustRegistry {
     this.records.set(replacementDeviceId, updatedNext)
     this.audit('device_replaced', replacedDeviceId, 'device_replaced', `Replaced by ${replacementDeviceId}.`, now.toISOString(), 'local_operator')
     return { ok: true }
+  }
+
+  private wouldCreateReplacementCycle(source: DeviceIdentifier, candidate: DeviceIdentifier): boolean {
+    let cursor: DeviceIdentifier | undefined = candidate
+    const seen = new Set<string>()
+    while (cursor) {
+      if (cursor === source) return true
+      if (seen.has(cursor)) return true
+      seen.add(cursor)
+      const record = this.records.get(cursor)
+      cursor = record?.replacement?.replacesDeviceId
+    }
+    return false
   }
 
   canAuthorize(deviceId: DeviceIdentifier): boolean {
@@ -351,4 +368,3 @@ export class DeviceTrustRegistry {
     return freeze(snapshot)
   }
 }
-

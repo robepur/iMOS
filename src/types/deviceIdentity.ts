@@ -109,6 +109,7 @@ export type IdentityLifecycleAuditEvent = {
 
 export type EnrollmentPackage = {
   packageVersion: '1.0.0'
+  purpose: 'device_enrollment'
   schemaVersion: DeviceSchemaVersion
   policyVersion: DevicePolicyVersion
   deviceId: DeviceIdentifier
@@ -126,8 +127,10 @@ export type EnrollmentPackage = {
 
 export type ProofChallenge = {
   challengeVersion: '1.0.0'
+  purpose: 'proof_of_possession'
   challengeId: string
   expectedDeviceId: DeviceIdentifier
+  expectedKeyFingerprint: string
   packageDigest: string
   nonce: string
   issuedAt: string
@@ -150,6 +153,7 @@ export type DeviceMessagePurpose =
 
 export type SignedDeviceMessage = {
   messageVersion: '1.0.0'
+  cryptoSuiteVersion: CryptoSuiteVersion
   signerDeviceId: DeviceIdentifier
   purpose: DeviceMessagePurpose
   createdAt: string
@@ -179,4 +183,3 @@ export type DeviceTrustRegistrySnapshot = {
   records: DeviceTrustRecord[]
   validation: DeviceRegistryValidationResult
 }
-

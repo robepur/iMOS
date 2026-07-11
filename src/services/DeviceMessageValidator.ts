@@ -32,7 +32,9 @@ async function importPublicKey(spkiBase64: string): Promise<CryptoKey> {
 
 function messageSigningPayload(message: Omit<SignedDeviceMessage, 'signature'>): Uint8Array {
   return canonicalizeUtf8({
+    domain: `signed_device_message:${message.purpose}`,
     messageVersion: message.messageVersion,
+    cryptoSuiteVersion: message.cryptoSuiteVersion,
     signerDeviceId: message.signerDeviceId,
     purpose: message.purpose,
     createdAt: message.createdAt,
@@ -46,6 +48,9 @@ export async function signDeviceMessage(
   message: Omit<SignedDeviceMessage, 'signature'>,
   privateKey: CryptoKey,
 ): Promise<SignedDeviceMessage> {
+  if (message.cryptoSuiteVersion !== '1.0.0') {
+    throw new Error('Unsupported message cryptographic suite version.')
+  }
   const signature = await crypto.subtle.sign(
     { name: 'ECDSA', hash: 'SHA-256' },
     privateKey,
@@ -67,6 +72,7 @@ export async function validateSignedDeviceMessage(input: {
   const { message, snapshot, replayGuard, requiredPurpose } = input
   if (!snapshot.validation.valid) return { valid: false, reason: 'registry_invalid' }
   if (message.messageVersion !== '1.0.0') return { valid: false, reason: 'message_version_unsupported' }
+  if (message.cryptoSuiteVersion !== '1.0.0') return { valid: false, reason: 'message_suite_version_unsupported' }
   if (!isIsoTimestamp(message.createdAt) || !isIsoTimestamp(message.expiresAt)) {
     return { valid: false, reason: 'message_timestamp_invalid' }
   }
@@ -75,11 +81,10 @@ export async function validateSignedDeviceMessage(input: {
 
   const createdAtMs = Date.parse(message.createdAt)
   const expiresAtMs = Date.parse(message.expiresAt)
-  if (createdAtMs > now.getTime()) return { valid: false, reason: 'message_from_future' }
+  if (createdAtMs > now.getTime() + 60_000) return { valid: false, reason: 'message_from_future' }
+  if (expiresAtMs <= createdAtMs) return { valid: false, reason: 'message_expiration_invalid' }
+  if (expiresAtMs - createdAtMs > 5 * 60_000) return { valid: false, reason: 'message_ttl_exceeds_limit' }
   if (expiresAtMs <= now.getTime()) return { valid: false, reason: 'message_expired' }
-  if (!replayGuard.consumeOnce(`msg:${message.signerDeviceId}:${message.nonce}`, message.expiresAt, now)) {
-    return { valid: false, reason: 'message_replay_detected' }
-  }
 
   const signer = findSigner(snapshot, message.signerDeviceId)
   if (!signer) return { valid: false, reason: 'signer_unknown' }
@@ -96,6 +101,7 @@ export async function validateSignedDeviceMessage(input: {
       base64ToBytes(message.signature),
       messageSigningPayload({
         messageVersion: message.messageVersion,
+        cryptoSuiteVersion: message.cryptoSuiteVersion,
         signerDeviceId: message.signerDeviceId,
         purpose: message.purpose,
         createdAt: message.createdAt,
@@ -109,6 +115,9 @@ export async function validateSignedDeviceMessage(input: {
     return { valid: false, reason: 'signature_verification_failed' }
   }
 
+  if (!replayGuard.consumeOnce(`msg:${message.signerDeviceId}:${message.nonce}`, message.expiresAt, now)) {
+    return { valid: false, reason: 'message_replay_detected' }
+  }
+
   return { valid: true }
 }
-

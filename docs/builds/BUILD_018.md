@@ -52,9 +52,11 @@ Build 018 keeps identities distinct:
 ## Private-key protection
 
 - Private keys are generated with `extractable: false`.
-- Public APIs return only public identity material and private-key handles (non-exporting).
+- Public identity APIs return only public identity plus opaque key references (not key bytes).
 - Private keys are never included in enrollment packages, audits, or message payload contracts.
-- Build 018 does not persist private keys as plaintext JSON and does not store private keys in readable localStorage.
+- Private keys are not serialized to JSON and are not stored in localStorage.
+- Durable private-key storage uses local IndexedDB CryptoKey records when available, bound to matching public identity metadata.
+- If durable key storage is unavailable or binding checks fail, identity use fails closed (no silent replacement identity generation).
 
 ## Identifier and fingerprint derivation
 
@@ -64,9 +66,10 @@ Build 018 keeps identities distinct:
 
 ## Canonical encoding
 
-- Canonical serializer sorts object keys recursively.
-- Canonical encoding rejects unsupported/ambiguous values (`undefined`, non-finite numbers, symbols, functions, bigint).
+- Canonical serializer sorts object keys recursively and normalizes strings to NFC.
+- Canonical encoding rejects unsupported/ambiguous values (`undefined`, non-finite numbers, `-0`, symbols, functions, bigint, non-plain objects, cyclic graphs).
 - Canonical payloads are used for package digests, proof challenges, and signed message payloads.
+- Domain separation is applied for proof challenges and signed message purposes.
 - Canonicalization is stable across object insertion order and JSON whitespace formatting.
 
 ## Enrollment package
@@ -84,7 +87,7 @@ Versioned, provider-neutral package includes:
 - issuer identity
 - proof-of-possession-required flag
 
-Package validation rejects expired, malformed, secret-bearing, unsupported-version, and mismatched-identity packages.
+Package validation rejects expired, malformed, secret-bearing, unsupported-version, mismatched-identity, future-dated, overlong-TTL, and schema-violating packages.
 
 ## Proof of possession
 
@@ -94,8 +97,11 @@ Local deterministic flow:
 2. Enrolling device signs canonical challenge payload.
 3. Verifier checks:
    - challenge/proof version
+   - challenge purpose/domain
    - challenge expiry
+   - future timestamp/skew bounds
    - claimed device identifier binding
+   - expected key fingerprint binding
    - package digest and nonce binding
    - signature validity against package public key
    - replay using bounded replay registry
@@ -128,7 +134,7 @@ Operator approval is explicitly required and independently recorded before activ
 
 ## Replay protection
 
-- Local in-memory bounded replay registry tracks message/challenge keys until expiration.
+- Local in-memory bounded replay registry tracks message/challenge identifiers until expiration.
 - Duplicate keys are rejected.
 - Registry prunes expired entries and enforces bounded retention.
 - Cross-device replay protection is deferred to future synchronization builds.
@@ -137,8 +143,9 @@ Operator approval is explicitly required and independently recorded before activ
 
 Build 018 introduces no persisted `PersonalData` schema changes.
 
-- Public trust registry and replay protections are modeled as deterministic in-memory contracts.
-- Private-key persistence strategy is deferred to a later encrypted-key architecture build.
+- Public trust registry and replay protections are deterministic in-memory contracts.
+- Durable private-key storage is local runtime storage (IndexedDB CryptoKey store), bound to public identity metadata.
+- If persistent key material is missing/corrupt/mismatched/unsupported at load, identity operations fail closed and require explicit operator recovery or replacement flow.
 
 ## Migration
 
@@ -148,7 +155,8 @@ Build 018 introduces no persisted `PersonalData` schema changes.
 ## Recovery
 
 - Existing vault recovery behavior remains unchanged.
-- Device trust contracts are local runtime-only in this build.
+- Device trust records remain local-only.
+- Build 018 does not claim encrypted vault backup includes recoverable non-extractable private keys.
 
 ## Rollback
 
@@ -182,6 +190,7 @@ Build 018 introduces no persisted `PersonalData` schema changes.
 - No real network transport exists.
 - Local revocation affects only current local trust state.
 - Build 019 must not assume authority beyond Build 018 contracts.
+- Cross-restart durability depends on local browser/runtime support for IndexedDB CryptoKey storage.
 
 ## Test coverage
 
@@ -191,6 +200,7 @@ Build 018 introduces no persisted `PersonalData` schema changes.
 - identifier/fingerprint stability and mismatch rejection
 - canonicalization stability and fail-closed behavior
 - enrollment package validation and secret exclusion
+- durable key binding checks and fail-closed reload behavior
 - proof-of-possession verification and replay rejection
 - lifecycle and authority transitions
 - suspension/revocation/replacement semantics
@@ -214,6 +224,7 @@ Build 018 is complete when:
 - replay attempts are rejected in local model
 - registry state is deterministic and immutable from callers
 - no real networking or cloud behavior is introduced
+- durable identity behavior is either available and validated or blocked fail-closed
 - required validation suite passes
 
 ## Release-gate checklist
@@ -227,6 +238,6 @@ Build 018 is complete when:
 - [x] deterministic local trust registry with immutable snapshot
 - [x] signed message validation requires trust + purpose + freshness + replay checks
 - [x] no network transport/provider/auth integration
+- [x] durable private-key persistence with fail-closed binding checks
 - [x] no persisted schema migration in Build 018
 - [x] security boundary checks preserved
-

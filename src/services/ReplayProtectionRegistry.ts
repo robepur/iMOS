@@ -16,6 +16,7 @@ export class ReplayProtectionRegistry {
   }
 
   consumeOnce(key: string, expiresAt: string, now = new Date()): boolean {
+    if (typeof key !== 'string' || key.length === 0) return false
     const nowMs = now.getTime()
     const expiresMs = Date.parse(expiresAt)
     if (!Number.isFinite(expiresMs) || expiresMs <= nowMs) return false
@@ -26,4 +27,3 @@ export class ReplayProtectionRegistry {
     return true
   }
 }
-
