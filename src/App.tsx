@@ -58,16 +58,12 @@ export default function App() {
   useEffect(() => {
     if (!vault.data) return
     const consent = vault.data.cognitionConsent
-    if (!isCognitionEnabled(consent)) {
-      lastOrchestrationKey.current = null
-      return
-    }
     const key = JSON.stringify({
       consent: {
-        status: consent!.status,
-        updatedAt: consent!.updatedAt,
-        categories: consent!.permittedDataCategories,
-        surfaces: consent!.permittedFeatureSurfaces,
+        status: consent?.status,
+        updatedAt: consent?.updatedAt,
+        categories: consent?.permittedDataCategories ?? [],
+        surfaces: consent?.permittedFeatureSurfaces ?? [],
       },
       commitments: vault.data.commitments.map((item) => [item.id, item.status, item.due]),
       decisions: vault.data.decisions.map((item) => [item.id, item.status, item.context, item.createdAt]),
