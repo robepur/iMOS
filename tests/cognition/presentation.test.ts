@@ -4,6 +4,7 @@ import {
   getNeutralPresentationProfile,
   removeOperatorOverride,
   resolvePresentationProfile,
+  resolveSurfacePresentation,
 } from '../../src/services/AdaptivePresentationEngine'
 import type { CognitiveConsent, OperatorUnderstanding } from '../../src/types/cognitive'
 
@@ -108,3 +109,98 @@ describe('AdaptivePresentationEngine', () => {
   })
 })
 
+
+
+describe('AdaptivePresentationEngine release gate hardening', () => {
+  it('does not invent a review timing preference from a generic timing observation', () => {
+    const timing: OperatorUnderstanding = {
+      ...confirmedUnderstanding,
+      id: 'u-timing',
+      ruleId: 'review_timing_preference',
+      ruleVersion: '1.0.0',
+      statement: 'Review actions were observed.',
+      provenance: {
+        ...confirmedUnderstanding.provenance,
+        ruleId: 'review_timing_preference',
+        ruleVersion: '1.0.0',
+      },
+    }
+    const result = resolvePresentationProfile({
+      consent: consentOn,
+      enabled: true,
+      understandings: [timing],
+      overrides: [],
+    })
+    expect(result.profile.activeAdaptations).toHaveLength(0)
+    expect(result.profile.reviewTimingMode).toBe('neutral')
+  })
+
+  it('does not invent dependency first planning from mission completion evidence', () => {
+    const mission: OperatorUnderstanding = {
+      ...confirmedUnderstanding,
+      id: 'u-mission',
+      ruleId: 'mission_completion_sequence',
+      ruleVersion: '1.0.0',
+      statement: 'Mission completion was observed.',
+      provenance: {
+        ...confirmedUnderstanding.provenance,
+        ruleId: 'mission_completion_sequence',
+        ruleVersion: '1.0.0',
+      },
+    }
+    const result = resolvePresentationProfile({
+      consent: consentOn,
+      enabled: true,
+      understandings: [mission],
+      overrides: [],
+    })
+    expect(result.profile.activeAdaptations).toHaveLength(0)
+    expect(result.profile.planningSequenceMode).toBe('sequential')
+  })
+
+  it('rejects an unsupported rule version', () => {
+    const result = resolvePresentationProfile({
+      consent: consentOn,
+      enabled: true,
+      understandings: [{
+        ...confirmedUnderstanding,
+        ruleVersion: '9.9.9',
+        provenance: { ...confirmedUnderstanding.provenance, ruleVersion: '9.9.9' },
+      }],
+      overrides: [],
+    })
+    expect(result.profile.activeAdaptations).toHaveLength(0)
+  })
+
+  it('scopes operator overrides to their authorized surface', () => {
+    const overrides = applyOperatorOverride([], {
+      targetSurface: 'briefing',
+      setting: 'summaryDetailMode',
+      value: 'summary_first',
+    })
+    const result = resolvePresentationProfile({
+      consent: consentOn,
+      enabled: true,
+      understandings: [confirmedUnderstanding],
+      overrides,
+    })
+    expect(resolveSurfacePresentation(result.profile, 'briefing').summaryDetailMode).toBe('summary_first')
+    expect(resolveSurfacePresentation(result.profile, 'review').summaryDetailMode).toBe('balanced')
+  })
+
+  it('drops an override for a surface not permitted by consent', () => {
+    const overrides = applyOperatorOverride([], {
+      targetSurface: 'mission_planning',
+      setting: 'planningSequenceMode',
+      value: 'dependency_first',
+    })
+    const result = resolvePresentationProfile({
+      consent: consentOn,
+      enabled: true,
+      understandings: [],
+      overrides,
+    })
+    expect(result.profile.operatorOverrides).toHaveLength(0)
+    expect(resolveSurfacePresentation(result.profile, 'mission_planning').planningSequenceMode).toBe('sequential')
+  })
+})
