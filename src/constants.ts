@@ -45,7 +45,7 @@ export const TIMELINE_TYPE_LABELS: Record<string, string> = {
 
 export const APP_NAME = 'iMOS'
 export const APP_FULL_NAME = 'Individual Mission Operating System'
-export const BUILD = '014'
+export const BUILD = '015'
 
 export const MISSION_LIMITS = {
   MAX_STEPS: 24,
@@ -71,6 +71,11 @@ export const COGNITION_FEATURE_SURFACE_LABELS: Record<string, string> = {
   missions: 'Mission Planner',
   recommendations: 'Rosie Recommendations',
   understanding_dashboard: 'Understanding Dashboard',
+  rosie_recommendations: 'Rosie Recommendations',
+  review_center: 'Review Center',
+  morning_brief: 'Morning Brief',
+  evening_summary: 'Evening Summary',
+  mission_planning: 'Mission Planning',
 }
 
 export const UNDERSTANDING_STATE_LABELS: Record<string, string> = {

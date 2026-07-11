@@ -11,12 +11,30 @@ import type {
   TimelineEntry,
   UnderstandingState,
 } from '../localData'
-import type { CognitionConsent, CognitiveSignal } from '../types/cognitive'
+import type {
+  CognitionConsent,
+  CognitiveSignal,
+  OperatorUnderstanding,
+  UnderstandingReviewEvent,
+} from '../types/cognitive'
 import { createId, createInitialData, normalizePersonalData } from '../localData'
 import { VaultService } from '../services/VaultService'
 import { StorageService } from '../services/StorageService'
 import { buildCompleted, buildDismissed, buildSnoozed } from './useRecommendations'
 import { MissionIntegrityService } from '../services/MissionIntegrityService'
+import {
+  confirmUnderstanding as confirmUnderstandingReview,
+  correctUnderstanding as correctUnderstandingReview,
+  rejectUnderstanding as rejectUnderstandingReview,
+  expireUnderstanding as expireUnderstandingReview,
+  suppressSourceSignal as suppressReviewSourceSignal,
+} from '../services/UnderstandingReviewService'
+import { isCognitionEnabled, isFeatureSurfacePermitted } from '../services/CognitionConsentService'
+
+function canMutateUnderstandingReview(data: PersonalData): boolean {
+  return isCognitionEnabled(data.cognitionConsent)
+    && isFeatureSurfacePermitted(data.cognitionConsent, 'understanding_dashboard')
+}
 
 export type VaultState = 'setup' | 'locked' | 'unlocked'
 
@@ -62,6 +80,17 @@ export type UseVaultReturn = {
   saveCognitiveSignals: (signals: CognitiveSignal[], registryVersion: string) => void
   /** Phase 3 Build 014: Suppress a cognitive signal by id. */
   suppressCognitiveSignal: (signalId: string) => void
+  /** Phase 3 Build 015: Persist understanding review state. */
+  saveOperatorUnderstandings: (
+    understandings: OperatorUnderstanding[],
+    rejectedSignatures: string[],
+    reviewAudit: UnderstandingReviewEvent[],
+  ) => void
+  confirmOperatorUnderstanding: (understandingId: string) => void
+  correctOperatorUnderstanding: (understandingId: string, correctedStatement: string, reason?: string) => void
+  rejectOperatorUnderstanding: (understandingId: string, reason?: string) => void
+  expireOperatorUnderstanding: (understandingId: string) => void
+  suppressUnderstandingSourceSignal: (signalId: string) => void
 }
 
 function timelineSignature(entry: Omit<TimelineEntry, 'id' | 'createdAt'>): string {
@@ -668,6 +697,88 @@ export function useVault(): UseVaultReturn {
     })
   }, [])
 
+  const saveOperatorUnderstandings = useCallback((
+    understandings: OperatorUnderstanding[],
+    rejectedSignatures: string[],
+    reviewAudit: UnderstandingReviewEvent[],
+  ) => {
+    setData((prev) => {
+      if (!prev || !canMutateUnderstandingReview(prev)) return prev
+      return {
+        ...prev,
+        operatorUnderstandings: understandings,
+        rejectedUnderstandingSignatures: rejectedSignatures,
+        understandingReviewAudit: reviewAudit,
+      }
+    })
+  }, [])
+
+  const confirmOperatorUnderstanding = useCallback((understandingId: string) => {
+    setData((prev) => {
+      if (!prev || !canMutateUnderstandingReview(prev)) return prev
+      return {
+        ...prev,
+        operatorUnderstandings: confirmUnderstandingReview(prev.operatorUnderstandings ?? [], understandingId, undefined, prev.cognitionConsent),
+      }
+    })
+  }, [])
+
+  const correctOperatorUnderstanding = useCallback((understandingId: string, correctedStatement: string, reason?: string) => {
+    setData((prev) => {
+      if (!prev || !canMutateUnderstandingReview(prev)) return prev
+      return {
+        ...prev,
+        operatorUnderstandings: correctUnderstandingReview(
+          prev.operatorUnderstandings ?? [],
+          understandingId,
+          correctedStatement,
+          reason,
+          undefined,
+          prev.cognitionConsent,
+        ),
+      }
+    })
+  }, [])
+
+  const rejectOperatorUnderstanding = useCallback((understandingId: string, reason?: string) => {
+    setData((prev) => {
+      if (!prev || !canMutateUnderstandingReview(prev)) return prev
+      const result = rejectUnderstandingReview(
+        prev.operatorUnderstandings ?? [],
+        understandingId,
+        prev.rejectedUnderstandingSignatures ?? [],
+        reason,
+        undefined,
+        prev.cognitionConsent,
+      )
+      return {
+        ...prev,
+        operatorUnderstandings: result.understandings,
+        rejectedUnderstandingSignatures: result.rejectedSignatures,
+      }
+    })
+  }, [])
+
+  const expireOperatorUnderstanding = useCallback((understandingId: string) => {
+    setData((prev) => {
+      if (!prev || !canMutateUnderstandingReview(prev)) return prev
+      return {
+        ...prev,
+        operatorUnderstandings: expireUnderstandingReview(prev.operatorUnderstandings ?? [], understandingId, undefined, prev.cognitionConsent),
+      }
+    })
+  }, [])
+
+  const suppressUnderstandingSourceSignal = useCallback((signalId: string) => {
+    setData((prev) => {
+      if (!prev || !canMutateUnderstandingReview(prev)) return prev
+      return {
+        ...prev,
+        cognitiveSignals: suppressReviewSourceSignal(prev.cognitiveSignals ?? [], signalId, undefined, prev.cognitionConsent),
+      }
+    })
+  }, [])
+
   return {
     vaultState, data, passphrase, error, saving, setData,
     createVault, unlock, lock, reset,
@@ -682,5 +793,11 @@ export function useVault(): UseVaultReturn {
     updateCognitionConsent,
     saveCognitiveSignals,
     suppressCognitiveSignal,
+    saveOperatorUnderstandings,
+    confirmOperatorUnderstanding,
+    correctOperatorUnderstanding,
+    rejectOperatorUnderstanding,
+    expireOperatorUnderstanding,
+    suppressUnderstandingSourceSignal,
   }
 }

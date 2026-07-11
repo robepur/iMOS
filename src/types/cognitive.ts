@@ -121,6 +121,30 @@ export type UnderstandingCorrection = {
   reason?: string
 }
 
+/** Review actions applied by the operator to a proposed understanding. */
+export type UnderstandingReviewAction =
+  | 'review_opened'
+  | 'confirmed'
+  | 'correction_submitted'
+  | 'corrected_confirmed'
+  | 'rejected'
+  | 'expired'
+  | 'source_signal_suppressed'
+  | 'duplicate_prevented'
+  | 'reappearance_blocked'
+  | 'blocked_by_consent'
+  | 'blocked_by_permission'
+  | 'invalid_provenance_rejected'
+
+/** Append-only audit event for operator understanding review history. */
+export type UnderstandingReviewEvent = {
+  id: string
+  action: UnderstandingReviewAction
+  timestamp: string
+  actor: 'local_operator' | 'system'
+  detail: string
+}
+
 /**
  * Persisted operator understanding derived from local encrypted records.
  *
@@ -134,6 +158,14 @@ export type OperatorUnderstanding = {
   statement: string
   /** IDs of the local vault records that provided evidence. */
   evidenceIds: string[]
+  /** Source cognitive signal id that produced this understanding. */
+  sourceSignalId: string
+  /** Source cognitive signal type. */
+  signalType: CognitiveSignalType
+  /** Number of evidence items considered during conversion. */
+  evidenceCount: number
+  /** Source signal status when this understanding was persisted. */
+  sourceSignalStatus: CognitiveSignalStatus
   /** Deterministic rule identifier (mirrors provenance.ruleId). */
   ruleId: string
   /** Semver string of the rule version (mirrors provenance.ruleVersion). */
@@ -147,6 +179,12 @@ export type OperatorUnderstanding = {
   confidenceBasis: string
   state: UnderstandingContractState
   correctionHistory: UnderstandingCorrection[]
+  /** Append-only operator review audit history. */
+  reviewHistory: UnderstandingReviewEvent[]
+  /** Deterministic material evidence signature used for dedup and reappearance controls. */
+  materialEvidenceSignature: string
+  /** True only when state is operator_confirmed and record is eligible for future personalization. */
+  personalizationEligible: boolean
   /** Surfaces that are permitted to use this understanding if confirmed. */
   permittedFeatureUses: CognitionFeatureSurface[]
   /** ISO timestamp after which this understanding returns to 'proposed'. */

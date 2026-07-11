@@ -56,7 +56,7 @@ describe('Phase 3 migration — Build 013 safe defaults', () => {
   })
 
   it('pre-013 vaults never have cognition enabled after migration — consent defaults off', () => {
-    const skipBuilds = new Set(['build013_consent_off', 'build014_with_signals'])
+    const skipBuilds = new Set(['build013_consent_off', 'build014_with_signals', 'build015_understanding_review'])
     for (const [build, fixture] of Object.entries(compatibilityVaults)) {
       if (skipBuilds.has(build)) continue
       const migrated = migrateToLatest(fixture)
@@ -186,5 +186,42 @@ describe('Phase 3 migration — Build 014 cognitive signal fields', () => {
     const twice = migrateToLatest(once)
     expect(twice.cognitiveSignals).toHaveLength(once.cognitiveSignals!.length)
     expect(twice.cognitiveRuleRegistryVersion).toBe(once.cognitiveRuleRegistryVersion)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Phase 3 migration — Build 015 understanding review fields
+// ---------------------------------------------------------------------------
+
+describe('Phase 3 migration — Build 015 understanding review fields', () => {
+  it('hydrates rejectedUnderstandingSignatures as empty when absent', () => {
+    const migrated = migrateToLatest(compatibilityVaults['build014_with_signals'])
+    expect(Array.isArray(migrated.rejectedUnderstandingSignatures)).toBe(true)
+    expect(migrated.rejectedUnderstandingSignatures).toHaveLength(0)
+  })
+
+  it('hydrates understandingReviewAudit as empty when absent', () => {
+    const migrated = migrateToLatest(compatibilityVaults['build014_with_signals'])
+    expect(Array.isArray(migrated.understandingReviewAudit)).toBe(true)
+    expect(migrated.understandingReviewAudit).toHaveLength(0)
+  })
+
+  it('preserves valid Build 015 review fields', () => {
+    const migrated = migrateToLatest(compatibilityVaults['build015_understanding_review'])
+    expect(Array.isArray(migrated.rejectedUnderstandingSignatures)).toBe(true)
+    expect(Array.isArray(migrated.understandingReviewAudit)).toBe(true)
+  })
+
+  it('filters malformed review state entries fail-closed', () => {
+    const migrated = migrateToLatest(compatibilityVaults['build015_corrupt_review_state'])
+    expect(migrated.rejectedUnderstandingSignatures).toEqual(['123', 'null', 'ok-signature'])
+    expect(migrated.understandingReviewAudit).toHaveLength(1)
+  })
+
+  it('migration is idempotent for Build 015 review fields', () => {
+    const once = migrateToLatest(compatibilityVaults['build015_understanding_review'])
+    const twice = migrateToLatest(once)
+    expect(twice.rejectedUnderstandingSignatures).toEqual(once.rejectedUnderstandingSignatures)
+    expect(twice.understandingReviewAudit).toHaveLength(once.understandingReviewAudit!.length)
   })
 })

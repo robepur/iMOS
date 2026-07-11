@@ -4,6 +4,8 @@ import type {
   CloudSyncConsentDeclaration,
   ConnectorConsentDeclaration,
   CognitiveSignal,
+  UnderstandingReviewEvent,
+  CognitiveSignalType,
 } from './types/cognitive'
 
 export type RosieRecommendation = {
@@ -185,6 +187,10 @@ export type PersonalData = {
   cognitiveSignals?: CognitiveSignal[]
   /** Phase 3 Build 014: version of the rule registry active when signals were last computed. */
   cognitiveRuleRegistryVersion?: string
+  /** Phase 3 Build 015: signatures that were explicitly rejected and must not silently reappear. */
+  rejectedUnderstandingSignatures?: string[]
+  /** Phase 3 Build 015: append-only audit history for understanding review operations. */
+  understandingReviewAudit?: UnderstandingReviewEvent[]
 }
 
 export type UnderstandingState = {
@@ -220,6 +226,78 @@ function isSafeOperatorUnderstanding(value: unknown): value is OperatorUnderstan
   if (!provenance || provenance.dataSource !== 'local_vault') return false
   if (typeof provenance.ruleId !== 'string' || typeof provenance.ruleVersion !== 'string' || !Array.isArray(provenance.evidenceTypes) || typeof provenance.generatedAt !== 'string') return false
   return provenance.ruleId === understanding.ruleId && provenance.ruleVersion === understanding.ruleVersion
+}
+
+function inferSignalTypeFromRuleId(ruleId: string): CognitiveSignalType {
+  const known = [
+    'repeated_decision_reopening',
+    'overdue_commitment_recurrence',
+    'recommendation_response_pattern',
+    'mission_completion_sequence',
+    'review_timing_preference',
+    'summary_vs_detail_preference',
+    'preferred_evidence_depth',
+  ] as const
+  if ((known as readonly string[]).includes(ruleId)) {
+    return ruleId as CognitiveSignalType
+  }
+  // Build 013 compatibility fallback for legacy understandings without signal typing.
+  return 'review_timing_preference'
+}
+
+function buildMaterialEvidenceSignature(parts: {
+  ruleId: string
+  ruleVersion: string
+  signalType: string
+  evidenceIds: string[]
+  statement: string
+}): string {
+  const normalizedEvidence = [...parts.evidenceIds].map(String).sort().join(',')
+  const normalizedStatement = parts.statement.trim().toLowerCase().replace(/\s+/g, ' ')
+  return `${parts.ruleId}|${parts.ruleVersion}|${parts.signalType}|${normalizedEvidence}|${normalizedStatement}`
+}
+
+function normalizeOperatorUnderstanding(understanding: OperatorUnderstanding): OperatorUnderstanding {
+  const normalizedSignalType = inferSignalTypeFromRuleId(understanding.ruleId)
+  const sourceSignalId =
+    typeof (understanding as Partial<OperatorUnderstanding>).sourceSignalId === 'string'
+      ? String((understanding as Partial<OperatorUnderstanding>).sourceSignalId)
+      : `legacy-signal-${understanding.id}`
+  const materialSignature =
+    typeof (understanding as Partial<OperatorUnderstanding>).materialEvidenceSignature === 'string'
+      ? String((understanding as Partial<OperatorUnderstanding>).materialEvidenceSignature)
+      : buildMaterialEvidenceSignature({
+          ruleId: understanding.ruleId,
+          ruleVersion: understanding.ruleVersion,
+          signalType: normalizedSignalType,
+          evidenceIds: understanding.evidenceIds,
+          statement: understanding.statement,
+        })
+
+  return {
+    ...understanding,
+    sourceSignalId,
+    signalType:
+      (VALID_SIGNAL_TYPES as readonly string[]).includes(String((understanding as Partial<OperatorUnderstanding>).signalType))
+        ? ((understanding as Partial<OperatorUnderstanding>).signalType as CognitiveSignalType)
+        : normalizedSignalType,
+    evidenceCount:
+      typeof (understanding as Partial<OperatorUnderstanding>).evidenceCount === 'number'
+        ? Number((understanding as Partial<OperatorUnderstanding>).evidenceCount)
+        : understanding.evidenceIds.length,
+    sourceSignalStatus:
+      (VALID_SIGNAL_STATUSES as readonly string[]).includes(String((understanding as Partial<OperatorUnderstanding>).sourceSignalStatus))
+        ? ((understanding as Partial<OperatorUnderstanding>).sourceSignalStatus as OperatorUnderstanding['sourceSignalStatus'])
+        : 'proposed',
+    reviewHistory: Array.isArray((understanding as Partial<OperatorUnderstanding>).reviewHistory)
+      ? ((understanding as Partial<OperatorUnderstanding>).reviewHistory as OperatorUnderstanding['reviewHistory'])
+      : [],
+    materialEvidenceSignature: materialSignature,
+    personalizationEligible:
+      typeof (understanding as Partial<OperatorUnderstanding>).personalizationEligible === 'boolean'
+        ? Boolean((understanding as Partial<OperatorUnderstanding>).personalizationEligible)
+        : understanding.state === 'operator_confirmed',
+  }
 }
 
 function normalizeCloudSyncDeclaration(value: unknown): CloudSyncConsentDeclaration {
@@ -331,7 +409,7 @@ export function normalizePersonalData(raw: PersonalData): PersonalData {
       ? raw.cognitionConsent
       : createDefaultCognitionConsent(),
     operatorUnderstandings: Array.isArray(raw.operatorUnderstandings)
-      ? raw.operatorUnderstandings.filter(isSafeOperatorUnderstanding)
+      ? raw.operatorUnderstandings.filter(isSafeOperatorUnderstanding).map(normalizeOperatorUnderstanding)
       : [],
     cloudSyncConsentDeclaration: normalizeCloudSyncDeclaration(raw.cloudSyncConsentDeclaration),
     connectorConsentDeclarations: Array.isArray(raw.connectorConsentDeclarations)
@@ -351,6 +429,21 @@ export function normalizePersonalData(raw: PersonalData): PersonalData {
     cognitiveRuleRegistryVersion: typeof raw.cognitiveRuleRegistryVersion === 'string'
       ? raw.cognitiveRuleRegistryVersion
       : undefined,
+    rejectedUnderstandingSignatures: Array.isArray(raw.rejectedUnderstandingSignatures)
+      ? raw.rejectedUnderstandingSignatures.map(String)
+      : [],
+    understandingReviewAudit: Array.isArray(raw.understandingReviewAudit)
+      ? raw.understandingReviewAudit
+          .filter((event): event is UnderstandingReviewEvent => Boolean(
+            event
+            && typeof event === 'object'
+            && typeof (event as { id?: unknown }).id === 'string'
+            && typeof (event as { action?: unknown }).action === 'string'
+            && typeof (event as { timestamp?: unknown }).timestamp === 'string'
+            && typeof (event as { actor?: unknown }).actor === 'string'
+            && typeof (event as { detail?: unknown }).detail === 'string',
+          ))
+      : [],
   }
 }
 
@@ -456,6 +549,9 @@ export function createInitialData(): PersonalData {
     operatorUnderstandings: [],
     cloudSyncConsentDeclaration: createDefaultCloudSyncConsent(),
     connectorConsentDeclarations: [],
+    cognitiveSignals: [],
+    rejectedUnderstandingSignatures: [],
+    understandingReviewAudit: [],
   }
 }
 

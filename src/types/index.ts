@@ -37,6 +37,8 @@ export type {
   UnderstandingContractState,
   UnderstandingProvenance,
   UnderstandingCorrection,
+  UnderstandingReviewAction,
+  UnderstandingReviewEvent,
   OperatorUnderstanding,
   CloudSyncConsentDeclaration,
   ConnectorPermissionLevel,
