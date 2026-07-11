@@ -60,13 +60,11 @@ export function Brief({ data, overdueCount, criticalCount, secretCount, onAddCom
   const orderedDecisions = data.decisions.filter((item) => item.status === 'open')
   const visibleCommitments = (() => {
     if (presentation?.informationDensity === 'low') return orderedCommitments.slice(0, 3)
-    if (presentation?.informationDensity === 'high') return orderedCommitments
-    return orderedCommitments.slice(0, 6)
+    return orderedCommitments
   })()
   const visibleDecisions = (() => {
     if (presentation?.informationDensity === 'low') return orderedDecisions.slice(0, 3)
-    if (presentation?.informationDensity === 'high') return orderedDecisions
-    return orderedDecisions.slice(0, 6)
+    return orderedDecisions
   })()
 
   return (
