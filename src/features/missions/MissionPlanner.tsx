@@ -7,6 +7,7 @@ import MissionHistory from './MissionHistory'
 import MissionStatistics from './MissionStatistics'
 import DependencyViewer from './DependencyViewer'
 import MissionTimeline from './MissionTimeline'
+import type { SurfacePresentation } from '../../types/presentation'
 
 type Props = {
   data: PersonalData
@@ -20,6 +21,7 @@ type Props = {
   onDeleteMissionStep: (planId: string, stepId: string) => void
   onReorderMissionSteps: (planId: string, orderedStepIds: string[]) => void
   onDeleteMissionPlan: (planId: string) => void
+  presentation?: SurfacePresentation
 }
 
 type Tab = 'planner' | 'dashboard' | 'history' | 'statistics' | 'timeline'
@@ -36,6 +38,7 @@ export default function MissionPlanner({
   onDeleteMissionStep,
   onReorderMissionSteps,
   onDeleteMissionPlan,
+  presentation,
 }: Props) {
   const [tab, setTab] = useState<Tab>('planner')
   const [objective, setObjective] = useState('')
@@ -46,7 +49,11 @@ export default function MissionPlanner({
   const plans = data.missionPlans ?? []
   const steps = data.missionSteps ?? []
   const selectedPlan = plans.find((p) => p.id === selectedPlanId) ?? null
-  const selectedSteps = selectedPlan ? steps.filter((s) => selectedPlan.stepIds.includes(s.id)).sort((a, b) => a.order - b.order) : []
+  const selectedSteps = selectedPlan ? steps.filter((s) => selectedPlan.stepIds.includes(s.id)).sort((a, b) => {
+    if (presentation?.planningSequenceMode === 'dependency_first') return b.dependsOn.length - a.dependsOn.length
+    if (presentation?.planningSequenceMode === 'milestone_first') return b.evidence.length - a.evidence.length
+    return a.order - b.order
+  }) : []
   const activePlan = plans.find((p) => p.status === 'active') ?? null
   const activeSteps = activePlan ? steps.filter((s) => activePlan.stepIds.includes(s.id)) : []
   const dependencyReport = useMemo(
@@ -65,6 +72,7 @@ export default function MissionPlanner({
     <section className="mission-planner panel" aria-label="Rosie Mission Planner">
       <div className="panelHeader">
         <div><p className="eyebrow">ROSIE MISSION PLANNING ENGINE</p><h2>Mission Planner</h2></div>
+        {presentation && <p className="dashRecent" style={{ marginRight: 14 }}>{presentation.indicator}</p>}
         <button className="closeButton" onClick={onClose} aria-label="Close">✕</button>
       </div>
 

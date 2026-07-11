@@ -1,6 +1,7 @@
 ﻿import { useState } from 'react'
 import { X } from 'lucide-react'
 import { inPeriod, PersonalData, ReviewPeriod, getRosieMemory } from '../../localData'
+import type { SurfacePresentation } from '../../types/presentation'
 import ReflectionHistory from '../reflection/ReflectionHistory'
 import CommitmentHistory from './CommitmentHistory'
 import DecisionHistory from './DecisionHistory'
@@ -119,13 +120,14 @@ function DashboardView({ data, period }: { data: PersonalData; period: ReviewPer
   )
 }
 
-export default function ReviewCenter({ data, onDeleteReflection, onClose }: {
+export default function ReviewCenter({ data, onDeleteReflection, onClose, presentation }: {
   data: PersonalData
   onDeleteReflection: (id: string) => void
   onClose: () => void
+  presentation?: SurfacePresentation
 }) {
   const [period, setPeriod] = useState<ReviewPeriod>('week')
-  const [tab, setTab] = useState<ReviewTab>('dashboard')
+  const [tab, setTab] = useState<ReviewTab>(presentation?.reviewTimingMode === 'morning' ? 'dashboard' : 'timeline')
 
   const filteredTimeline = data.timeline.filter((e) => inPeriod(e.createdAt, period))
   const filteredCommitments = data.commitments.filter((c) => inPeriod(c.createdAt, period))
@@ -138,6 +140,7 @@ export default function ReviewCenter({ data, onDeleteReflection, onClose }: {
         <div>
           <p className="eyebrow">OPERATOR REVIEW CENTER</p>
           <h2>Operational History</h2>
+          {presentation && <p className="dashRecent">{presentation.indicator}</p>}
         </div>
         <button className="iconButton" onClick={onClose} aria-label="Close review center"><X size={18} /></button>
       </div>
@@ -184,5 +187,3 @@ export default function ReviewCenter({ data, onDeleteReflection, onClose }: {
     </section>
   )
 }
-
-

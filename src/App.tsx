@@ -11,12 +11,21 @@ import { UnderstandingEngine } from './services/UnderstandingEngine'
 import { analyze as analyzeSignals } from './services/CognitiveSignalEngine'
 import { isCognitionEnabled } from './services/CognitionConsentService'
 import { createProposedUnderstanding } from './services/UnderstandingReviewService'
+import {
+  applyOperatorOverride,
+  buildNeutralRestorationAudit,
+  getNeutralPresentationProfile,
+  PRESENTATION_MAPPING_REGISTRY_VERSION,
+  removeOperatorOverride,
+  resolvePresentationProfile,
+  resolveSurfacePresentation,
+} from './services/AdaptivePresentationEngine'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import VaultGate from './features/vault/VaultGate'
 import DataPanel from './features/vault/DataPanel'
 import { Arrival, Brief, FocusView, Reflection, TimelineItem } from './features/arrival/OperatingLoop'
 import PriorityConsole from './features/priorities/PriorityConsole'
-import { CognitionConsentPanel, CognitiveSignalsPanel, UnderstandingReviewCenter } from './features/cognition'
+import { CognitionConsentPanel, CognitiveSignalsPanel, PersonalizationControlCenter, UnderstandingReviewCenter } from './features/cognition'
 
 const ReviewCenter           = lazy(() => import('./features/review/ReviewCenter'))
 const RecoveryConsole        = lazy(() => import('./features/recovery/RecoveryConsole'))
@@ -51,6 +60,7 @@ export default function App() {
   const [showCognition, setShowCognition]           = useState(false)
   const [showSignals, setShowSignals]               = useState(false)
   const [showUnderstandingReview, setShowUnderstandingReview] = useState(false)
+  const [showPersonalization, setShowPersonalization] = useState(false)
 
   const date = useMemo(() => new Intl.DateTimeFormat('en-US', { weekday: 'long', month: 'long', day: 'numeric' }).format(new Date()), [])
 
@@ -85,6 +95,29 @@ export default function App() {
     if (!result.blocked) {
       vault.saveCognitiveSignals(result.signals, result.registryVersion)
     }
+  }, [vault])
+
+  const lastPresentationResolution = useRef<string | null>(null)
+  useEffect(() => {
+    if (!vault.data) return
+    const key = JSON.stringify({
+      consentStatus: vault.data.cognitionConsent?.status,
+      consentUpdatedAt: vault.data.cognitionConsent?.updatedAt,
+      enabled: vault.data.presentationPersonalizationEnabled ?? false,
+      understandings: (vault.data.operatorUnderstandings ?? []).map((item) => [
+        item.id, item.state, item.personalizationEligible, item.expiresAt, item.updatedAt, item.ruleId, item.ruleVersion,
+      ]),
+      overrides: (vault.data.presentationOverrides ?? []).map((item) => [item.id, item.setting, item.value, item.updatedAt]),
+    })
+    if (lastPresentationResolution.current === key) return
+    lastPresentationResolution.current = key
+    const result = resolvePresentationProfile({
+      consent: vault.data.cognitionConsent,
+      enabled: vault.data.presentationPersonalizationEnabled ?? false,
+      understandings: vault.data.operatorUnderstandings ?? [],
+      overrides: vault.data.presentationOverrides ?? [],
+    })
+    vault.saveResolvedPresentationProfile(result.profile, result.audit, PRESENTATION_MAPPING_REGISTRY_VERSION)
   }, [vault])
 
   const lastUnderstandingConversion = useRef<string | null>(null)
@@ -180,6 +213,10 @@ export default function App() {
   const driftCritical = understanding?.drift.hasCritical ?? false
   const morningObservations = understanding ? UnderstandingEngine.getMorningObservations(understanding) : []
   const eveningObservations = understanding ? UnderstandingEngine.getEveningObservations(understanding) : []
+  const profile = data.presentationProfile
+  const briefingPresentation = profile ? resolveSurfacePresentation(profile, 'briefing') : undefined
+  const reviewPresentation = profile ? resolveSurfacePresentation(profile, 'review') : undefined
+  const missionPresentation = profile ? resolveSurfacePresentation(profile, 'missions') : undefined
 
   const stateItems = [
     ['Executive State', mode === 'focus' ? 'Focused' : 'Aware'],
@@ -220,6 +257,11 @@ export default function App() {
               <BrainCircuit size={16} /> UNDERSTANDINGS{(data.operatorUnderstandings ?? []).filter((u) => u.state === 'proposed').length > 0 ? ` (${(data.operatorUnderstandings ?? []).filter((u) => u.state === 'proposed').length})` : ''}
             </button>
           )}
+          {isCognitionEnabled(data.cognitionConsent) && (
+            <button className="utilityButton" onClick={() => setShowPersonalization(true)}>
+              <BrainCircuit size={16} /> PERSONALIZATION
+            </button>
+          )}
           <button className="utilityButton" onClick={() => setShowKnowledge(true)}><Network size={16} /> KNOWLEDGE</button>
           <button className="utilityButton" onClick={() => setShowPriorities(true)}><ListChecks size={16} /> PRIORITIES</button>
           <button className="utilityButton" onClick={() => setShowSecrets(true)}><KeyRound size={16} /> SECRETS</button>
@@ -237,7 +279,7 @@ export default function App() {
           {showSecrets && <SecretsConsole records={secrets.records} onChange={vault.updateSecrets} onClose={() => setShowSecrets(false)} />}
           {showRecovery && <RecoveryConsole onClose={() => setShowRecovery(false)} onRestore={vault.restoreVault} onRotate={vault.rotateVaultPassphrase} />}
           {showReflections && <ReflectionHistory reflections={data.reflections} onDelete={vault.deleteReflection} onClose={() => setShowReflections(false)} />}
-          {showReview && <ReviewCenter data={data} onDeleteReflection={vault.deleteReflection} onClose={() => setShowReview(false)} />}
+          {showReview && <ReviewCenter data={data} onDeleteReflection={vault.deleteReflection} onClose={() => setShowReview(false)} presentation={reviewPresentation} />}
           {showRosie && <RecommendationCenter recs={recs} patterns={patterns} healthSignals={healthSignals} onComplete={vault.completeRecommendation} onDismiss={vault.dismissRecommendation} onSnooze={vault.snoozeRecommendation} onClose={() => setShowRosie(false)} />}
           {showMissions && (
             <MissionPlanner
@@ -252,6 +294,7 @@ export default function App() {
               onDeleteMissionStep={vault.deleteMissionStep}
               onReorderMissionSteps={vault.reorderMissionSteps}
               onDeleteMissionPlan={vault.deleteMissionPlan}
+              presentation={missionPresentation}
             />
           )}
           {showKnowledge && <KnowledgeGraphViewer graph={graph} onClose={() => setShowKnowledge(false)} />}
@@ -282,6 +325,34 @@ export default function App() {
               onClose={() => setShowUnderstandingReview(false)}
             />
           )}
+          {showPersonalization && data.cognitionConsent && data.presentationProfile && (
+            <PersonalizationControlCenter
+              consent={data.cognitionConsent}
+              enabled={data.presentationPersonalizationEnabled ?? false}
+              profile={data.presentationProfile}
+              overrides={data.presentationOverrides ?? []}
+              onEnableChanged={vault.setPresentationPersonalizationEnabled}
+              onOverrideChanged={(setting, value) => {
+                const targetSurface = setting === 'planningSequenceMode'
+                  ? 'missions'
+                  : setting === 'reviewTimingMode' || setting === 'evidenceDepth'
+                    ? 'review'
+                    : 'briefing'
+                const next = applyOperatorOverride(data.presentationOverrides ?? [], { targetSurface, setting, value })
+                vault.savePresentationOverrides(next)
+              }}
+              onOverrideRemoved={(overrideId) => vault.savePresentationOverrides(removeOperatorOverride(data.presentationOverrides ?? [], overrideId))}
+              onRestoreNeutral={() => {
+                vault.restoreNeutralPresentation()
+                vault.saveResolvedPresentationProfile(
+                  getNeutralPresentationProfile(),
+                  [buildNeutralRestorationAudit()],
+                  PRESENTATION_MAPPING_REGISTRY_VERSION,
+                )
+              }}
+              onClose={() => setShowPersonalization(false)}
+            />
+          )}
         </Suspense>
       </ErrorBoundary>
 
@@ -290,7 +361,7 @@ export default function App() {
       <section className="workspace">
         <div className="primary panel">
           {mode === 'arrival' && <Arrival date={date} data={data} primary={primary} onBegin={() => setMode('brief')} />}
-          {mode === 'brief' && <Brief data={data} overdueCount={overdueCount} criticalCount={criticalCount} secretCount={secrets.count} morningBrief={morningBrief} morningObservations={morningObservations} onAddCommitment={vault.addCommitment} onAddDecision={vault.addDecision} onToggleCommitment={vault.toggleCommitment} onToggleDecision={vault.toggleDecision} onOpenPriorities={() => setShowPriorities(true)} onOpenReflectionHistory={() => setShowReflections(true)} onBegin={() => setMode('focus')} />}
+          {mode === 'brief' && <Brief data={data} overdueCount={overdueCount} criticalCount={criticalCount} secretCount={secrets.count} morningBrief={morningBrief} morningObservations={morningObservations} onAddCommitment={vault.addCommitment} onAddDecision={vault.addDecision} onToggleCommitment={vault.toggleCommitment} onToggleDecision={vault.toggleDecision} onOpenPriorities={() => setShowPriorities(true)} onOpenReflectionHistory={() => setShowReflections(true)} onBegin={() => setMode('focus')} presentation={briefingPresentation} />}
           {mode === 'focus' && <FocusView primary={primary} onCompletePriority={() => primary && vault.completePrimaryPriority(primary)} onComplete={() => setMode('reflection')} />}
           {mode === 'reflection' && <Reflection eveningSummary={eveningSummary} eveningObservations={eveningObservations} onSave={(a, r, t) => { vault.saveReflection(a, r, t); setMode('arrival') }} />}
         </div>

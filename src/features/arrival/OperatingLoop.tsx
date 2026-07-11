@@ -3,6 +3,7 @@ import { ArrowRight, CheckCircle2, Focus, ListChecks, Plus } from 'lucide-react'
 import { PersonalData, Priority, TimelineEntry } from '../../localData'
 import type { EveningSummaryData, MorningBriefData } from '../../services/RosieEngine'
 import type { UnderstandingObservation } from '../../services/UnderstandingEngine'
+import type { SurfacePresentation } from '../../types/presentation'
 import RosieMemory from '../rosie/RosieMemory'
 
 export function Arrival({ date, data, primary, onBegin }: {
@@ -31,7 +32,7 @@ export function Arrival({ date, data, primary, onBegin }: {
   )
 }
 
-export function Brief({ data, overdueCount, criticalCount, secretCount, onAddCommitment, onAddDecision, onToggleCommitment, onToggleDecision, onOpenPriorities, onOpenReflectionHistory, onBegin, morningObservations = [], morningBrief }: {
+export function Brief({ data, overdueCount, criticalCount, secretCount, onAddCommitment, onAddDecision, onToggleCommitment, onToggleDecision, onOpenPriorities, onOpenReflectionHistory, onBegin, morningObservations = [], morningBrief, presentation }: {
   data: PersonalData
   overdueCount: number
   criticalCount: number
@@ -45,6 +46,7 @@ export function Brief({ data, overdueCount, criticalCount, secretCount, onAddCom
   onBegin: () => void
   morningObservations?: UnderstandingObservation[]
   morningBrief?: MorningBriefData
+  presentation?: SurfacePresentation
 }) {
   const [capture, setCapture] = useState<'commitment' | 'decision' | null>(null)
   const openCommitments = data.commitments.filter((item) => item.status === 'open')
@@ -54,11 +56,24 @@ export function Brief({ data, overdueCount, criticalCount, secretCount, onAddCom
 
   const observations = morningObservations
   const morning = morningBrief
+  const orderedCommitments = data.commitments.filter((item) => item.status === 'open')
+  const orderedDecisions = data.decisions.filter((item) => item.status === 'open')
+  const visibleCommitments = (() => {
+    if (presentation?.informationDensity === 'low') return orderedCommitments.slice(0, 3)
+    if (presentation?.informationDensity === 'high') return orderedCommitments
+    return orderedCommitments.slice(0, 6)
+  })()
+  const visibleDecisions = (() => {
+    if (presentation?.informationDensity === 'low') return orderedDecisions.slice(0, 3)
+    if (presentation?.informationDensity === 'high') return orderedDecisions
+    return orderedDecisions.slice(0, 6)
+  })()
 
   return (
     <div>
       <p className="eyebrow">MORNING EXECUTIVE BRIEF</p>
       <h2>Where we stand.</h2>
+      {presentation && <p className="dashRecent">{presentation.indicator}</p>}
       <div className="cards">
         <BriefCard label="PRIMARY MISSION" value={primary?.title ?? 'No primary priority set'} />
         <BriefCard label="CRITICAL" value={criticalCount ? `${criticalCount} critical active` : 'No critical priorities'} />
@@ -70,7 +85,7 @@ export function Brief({ data, overdueCount, criticalCount, secretCount, onAddCom
         <span>{openDecisions.length} open decision{openDecisions.length !== 1 ? 's' : ''}</span>
         <span>{activePriorities.length} active priorit{activePriorities.length !== 1 ? 'ies' : 'y'}</span>
       </div>
-      {observations.length > 0 && (
+      {observations.length > 0 && presentation?.evidenceDepth !== 'collapsed' && (
         <section className="dashSection" aria-label="Rosie understanding observations">
           <p className="eyebrow">UNDERSTANDING OBSERVATIONS</p>
           {observations.map((obs, index) => (
@@ -92,8 +107,8 @@ export function Brief({ data, overdueCount, criticalCount, secretCount, onAddCom
         </section>
       )}
       <div className="recordGrid">
-        <RecordList title="OPEN COMMITMENTS" items={openCommitments.map((item) => ({ id: item.id, title: item.title, meta: item.due || 'No due date' }))} onToggle={onToggleCommitment} />
-        <RecordList title="OPEN DECISIONS" items={openDecisions.map((item) => ({ id: item.id, title: item.title, meta: item.context || 'No context added' }))} onToggle={onToggleDecision} />
+        <RecordList title="OPEN COMMITMENTS" items={visibleCommitments.map((item) => ({ id: item.id, title: item.title, meta: item.due || 'No due date' }))} onToggle={onToggleCommitment} />
+        <RecordList title="OPEN DECISIONS" items={visibleDecisions.map((item) => ({ id: item.id, title: item.title, meta: item.context || 'No context added' }))} onToggle={onToggleDecision} />
       </div>
       <div className="captureActions">
         <button className="secondaryButton" onClick={() => setCapture('commitment')}><Plus size={16} /> COMMITMENT</button>

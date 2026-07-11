@@ -56,7 +56,7 @@ describe('Phase 3 migration — Build 013 safe defaults', () => {
   })
 
   it('pre-013 vaults never have cognition enabled after migration — consent defaults off', () => {
-    const skipBuilds = new Set(['build013_consent_off', 'build014_with_signals', 'build015_understanding_review'])
+    const skipBuilds = new Set(['build013_consent_off', 'build014_with_signals', 'build015_understanding_review', 'build016_adaptive_presentation'])
     for (const [build, fixture] of Object.entries(compatibilityVaults)) {
       if (skipBuilds.has(build)) continue
       const migrated = migrateToLatest(fixture)
@@ -223,5 +223,36 @@ describe('Phase 3 migration — Build 015 understanding review fields', () => {
     const twice = migrateToLatest(once)
     expect(twice.rejectedUnderstandingSignatures).toEqual(once.rejectedUnderstandingSignatures)
     expect(twice.understandingReviewAudit).toHaveLength(once.understandingReviewAudit!.length)
+  })
+})
+
+describe('Phase 3 migration — Build 016 adaptive presentation fields', () => {
+  it('hydrates adaptive presentation fields when absent', () => {
+    const migrated = migrateToLatest(compatibilityVaults['build015_understanding_review'])
+    expect(migrated.presentationPersonalizationEnabled).toBe(false)
+    expect(migrated.presentationProfile).toBeDefined()
+    expect(Array.isArray(migrated.presentationOverrides)).toBe(true)
+    expect(Array.isArray(migrated.presentationAdaptationAudit)).toBe(true)
+  })
+
+  it('preserves valid adaptive presentation state', () => {
+    const migrated = migrateToLatest(compatibilityVaults['build016_adaptive_presentation'])
+    expect(migrated.presentationPersonalizationEnabled).toBe(true)
+    expect(migrated.presentationMappingRegistryVersion).toBe('2026.07.11')
+    expect(migrated.presentationProfile?.validationState).toBe('neutral')
+  })
+
+  it('fails closed for malformed adaptive presentation state', () => {
+    const migrated = migrateToLatest({
+      ...compatibilityVaults['build015_understanding_review'],
+      presentationPersonalizationEnabled: 'yes',
+      presentationProfile: { malformed: true },
+      presentationOverrides: [{ bad: true }],
+      presentationAdaptationAudit: [{ bad: true }],
+    } as never)
+    expect(migrated.presentationPersonalizationEnabled).toBe(false)
+    expect(migrated.presentationProfile?.profileVersion).toBe('v1')
+    expect(migrated.presentationOverrides).toEqual([])
+    expect(migrated.presentationAdaptationAudit).toEqual([])
   })
 })

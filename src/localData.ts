@@ -7,6 +7,11 @@ import type {
   UnderstandingReviewEvent,
   CognitiveSignalType,
 } from './types/cognitive'
+import type {
+  PresentationAdaptationAuditEvent,
+  PresentationOverride,
+  PresentationProfile,
+} from './types/presentation'
 
 export type RosieRecommendation = {
   id: string
@@ -191,6 +196,16 @@ export type PersonalData = {
   rejectedUnderstandingSignatures?: string[]
   /** Phase 3 Build 015: append-only audit history for understanding review operations. */
   understandingReviewAudit?: UnderstandingReviewEvent[]
+  /** Phase 3 Build 016: operator-controlled presentation personalization switch. */
+  presentationPersonalizationEnabled?: boolean
+  /** Phase 3 Build 016: persisted resolved presentation profile. */
+  presentationProfile?: PresentationProfile
+  /** Phase 3 Build 016: explicit operator overrides for adaptation settings. */
+  presentationOverrides?: PresentationOverride[]
+  /** Phase 3 Build 016: append-only adaptation audit history. */
+  presentationAdaptationAudit?: PresentationAdaptationAuditEvent[]
+  /** Phase 3 Build 016: mapping registry version used for resolved profile. */
+  presentationMappingRegistryVersion?: string
 }
 
 export type UnderstandingState = {
@@ -321,6 +336,77 @@ const VALID_SIGNAL_TYPES = [
 
 const VALID_SIGNAL_STATUSES = ['observed', 'proposed', 'suppressed', 'expired'] as const
 
+function createDefaultPresentationProfile(): PresentationProfile {
+  return {
+    profileVersion: 'v1',
+    generatedAt: new Date().toISOString(),
+    sourceUnderstandingIds: [],
+    sourceRuleVersions: [],
+    summaryDetailMode: 'balanced',
+    informationDensity: 'standard',
+    evidenceDepth: 'standard',
+    briefingSectionOrder: ['overview', 'recommendations', 'focus', 'evidence'],
+    planningSequenceMode: 'sequential',
+    reviewTimingMode: 'neutral',
+    expansionDefaults: {
+      briefingDetailsExpanded: false,
+      reviewDetailsExpanded: false,
+      missionDetailsExpanded: false,
+      evidenceExpanded: false,
+    },
+    activeAdaptations: [],
+    operatorOverrides: [],
+    explanations: [],
+    validationState: 'neutral',
+  }
+}
+
+function isSafePresentationOverride(value: unknown): value is PresentationOverride {
+  if (!value || typeof value !== 'object') return false
+  const override = value as Partial<PresentationOverride>
+  return (
+    typeof override.id === 'string'
+    && typeof override.targetSurface === 'string'
+    && typeof override.setting === 'string'
+    && typeof override.value === 'string'
+    && typeof override.createdAt === 'string'
+    && typeof override.updatedAt === 'string'
+  )
+}
+
+function isSafePresentationAudit(value: unknown): value is PresentationAdaptationAuditEvent {
+  if (!value || typeof value !== 'object') return false
+  const event = value as Partial<PresentationAdaptationAuditEvent>
+  return (
+    typeof event.id === 'string'
+    && typeof event.action === 'string'
+    && typeof event.timestamp === 'string'
+    && typeof event.detail === 'string'
+  )
+}
+
+function isSafePresentationProfile(value: unknown): value is PresentationProfile {
+  if (!value || typeof value !== 'object') return false
+  const profile = value as Partial<PresentationProfile>
+  return (
+    typeof profile.profileVersion === 'string'
+    && typeof profile.generatedAt === 'string'
+    && Array.isArray(profile.sourceUnderstandingIds)
+    && Array.isArray(profile.sourceRuleVersions)
+    && typeof profile.summaryDetailMode === 'string'
+    && typeof profile.informationDensity === 'string'
+    && typeof profile.evidenceDepth === 'string'
+    && Array.isArray(profile.briefingSectionOrder)
+    && typeof profile.planningSequenceMode === 'string'
+    && typeof profile.reviewTimingMode === 'string'
+    && !!profile.expansionDefaults
+    && Array.isArray(profile.activeAdaptations)
+    && Array.isArray(profile.operatorOverrides)
+    && Array.isArray(profile.explanations)
+    && typeof profile.validationState === 'string'
+  )
+}
+
 function isSafeCognitiveSignal(value: unknown): value is import('./types/cognitive').CognitiveSignal {
   if (!value || typeof value !== 'object') return false
   const s = value as Partial<import('./types/cognitive').CognitiveSignal>
@@ -444,6 +530,19 @@ export function normalizePersonalData(raw: PersonalData): PersonalData {
             && typeof (event as { detail?: unknown }).detail === 'string',
           ))
       : [],
+    presentationPersonalizationEnabled: raw.presentationPersonalizationEnabled === true,
+    presentationProfile: isSafePresentationProfile(raw.presentationProfile)
+      ? raw.presentationProfile
+      : createDefaultPresentationProfile(),
+    presentationOverrides: Array.isArray(raw.presentationOverrides)
+      ? raw.presentationOverrides.filter(isSafePresentationOverride)
+      : [],
+    presentationAdaptationAudit: Array.isArray(raw.presentationAdaptationAudit)
+      ? raw.presentationAdaptationAudit.filter(isSafePresentationAudit)
+      : [],
+    presentationMappingRegistryVersion: typeof raw.presentationMappingRegistryVersion === 'string'
+      ? raw.presentationMappingRegistryVersion
+      : undefined,
   }
 }
 
@@ -552,6 +651,10 @@ export function createInitialData(): PersonalData {
     cognitiveSignals: [],
     rejectedUnderstandingSignatures: [],
     understandingReviewAudit: [],
+    presentationPersonalizationEnabled: false,
+    presentationProfile: createDefaultPresentationProfile(),
+    presentationOverrides: [],
+    presentationAdaptationAudit: [],
   }
 }
 
