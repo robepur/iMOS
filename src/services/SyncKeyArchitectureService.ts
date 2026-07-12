@@ -74,7 +74,12 @@ function wrappingAad(input: {
   return new TextEncoder().encode(canonicalizeStableJson({
     domain: 'imos_sync_object_key_wrap',
     architectureVersion: ARCHITECTURE_VERSION,
-    ...input,
+    hierarchyId: input.hierarchyId,
+    namespace: input.namespace,
+    objectId: input.objectId,
+    objectKeyId: input.objectKeyId,
+    wrappingKeyId: input.wrappingKeyId,
+    createdAt: input.createdAt,
   }))
 }
 
