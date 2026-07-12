@@ -168,6 +168,7 @@ export class SyncProtocolService {
     signerIdentity: DevicePublicIdentity
     trustRegistry?: DeviceTrustRegistry
     now?: Date
+    consumeReplay?: boolean
   }): Promise<{ ok: true } | { ok: false; error: SyncProtocolError }> => {
     const now = input.now ?? new Date()
     const { request, signerIdentity, trustRegistry } = input
@@ -203,7 +204,7 @@ export class SyncProtocolService {
     if (!verification.valid) {
       return { ok: false, error: fail('validation_failed', 'Signed request signature failed verification.', request.requestId) }
     }
-    if (!this.replayGuard.consumeOnce(`signed:${request.replayId}`, request.expiresAt, now)) {
+    if (input.consumeReplay !== false && !this.replayGuard.consumeOnce(`signed:${request.replayId}`, request.expiresAt, now)) {
       return { ok: false, error: fail('replay_detected', 'Signed request replay detected.', request.requestId) }
     }
     return { ok: true }

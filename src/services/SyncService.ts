@@ -143,6 +143,7 @@ export class SyncService {
       signerIdentity,
       trustRegistry: this.trustRegistry,
       now: input.now,
+      consumeReplay: false,
     })
     if (!signatureValidation.ok) {
       return {
