@@ -5,7 +5,7 @@
  * responsive patterns, and preservation of all existing behavior.
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent, within } from '@testing-library/react'
 import { BUILD } from '../src/constants'
 import AppShell, { type NavTab, type MoreItem } from '../src/components/AppShell'
@@ -223,7 +223,7 @@ describe('Desktop navigation', () => {
     const nav = screen.getByTestId('desktop-nav')
     const expectedIds = ['home', 'focus', 'missions', 'rosie']
     expectedIds.forEach(id => {
-      expect(screen.getByTestId(`desktop-nav-${id}`)).toBeDefined()
+      expect(within(nav).getByTestId(`desktop-nav-${id}`)).toBeDefined()
     })
   })
 
@@ -329,17 +329,16 @@ describe('More drawer', () => {
 describe('Accessibility', () => {
   it('bottom nav has role=navigation and aria-label', () => {
     renderShell()
-    const navs = screen.getAllByRole('navigation')
-    const bottomNav = navs.find(n => n.getAttribute('data-testid') === 'bottom-nav')
-    expect(bottomNav).toBeDefined()
-    expect(bottomNav!.getAttribute('aria-label')).toBe('Primary navigation')
+    const bottomNav = screen.getByTestId('bottom-nav')
+    expect(bottomNav.getAttribute('role')).toBe('navigation')
+    expect(bottomNav.getAttribute('aria-label')).toBe('Mobile primary navigation')
   })
 
   it('desktop nav has role=navigation and aria-label', () => {
     renderShell()
     const nav = screen.getByTestId('desktop-nav')
     expect(nav.getAttribute('role')).toBe('navigation')
-    expect(nav.getAttribute('aria-label')).toBe('Primary navigation')
+    expect(nav.getAttribute('aria-label')).toBe('Desktop primary navigation')
   })
 
   it('mobile header has role=banner', () => {
@@ -356,7 +355,8 @@ describe('Accessibility', () => {
 
   it('rosie alert badge has descriptive aria-label', () => {
     renderShell('home', noop, 5)
-    const badge = screen.getByLabelText('5 alerts')
+    const nav = screen.getByTestId('bottom-nav')
+    const badge = within(nav).getByLabelText('5 alerts')
     expect(badge).toBeDefined()
   })
 })
@@ -376,14 +376,14 @@ describe('VaultGate', () => {
 
   it('setup screen has passphrase and confirm inputs', () => {
     render(<VaultGate state="setup" error="" onCreate={noopAsync} onUnlock={noopAsync} />)
-    const inputs = screen.getAllByRole('textbox').length + document.querySelectorAll('input[type="password"]').length
-    expect(inputs).toBeGreaterThanOrEqual(2)
+    expect(screen.getByLabelText('PASSPHRASE')).toBeDefined()
+    expect(screen.getByLabelText('CONFIRM PASSPHRASE')).toBeDefined()
   })
 
   it('locked screen has single passphrase input', () => {
     render(<VaultGate state="locked" error="" onCreate={noopAsync} onUnlock={noopAsync} />)
-    const inputs = document.querySelectorAll('input[type="password"]')
-    expect(inputs).toHaveLength(1)
+    expect(screen.getByLabelText('PASSPHRASE')).toBeDefined()
+    expect(screen.queryByLabelText('CONFIRM PASSPHRASE')).toBeNull()
   })
 
   it('renders error message when error prop is set', () => {
@@ -424,11 +424,13 @@ describe('Existing behavior preserved', () => {
   })
 
   it('all 5 nav destinations are reachable from bottom nav', () => {
+    renderShell()
+    const bottomNav = screen.getByTestId('bottom-nav')
     const destinations: NavTab[] = ['home', 'focus', 'missions', 'rosie']
     destinations.forEach(dest => {
-      expect(screen.queryByTestId(`bottom-nav-${dest}`)).not.toBeNull()
+      expect(within(bottomNav).queryByTestId(`bottom-nav-${dest}`)).not.toBeNull()
     })
-    expect(screen.queryByTestId('bottom-nav-more')).not.toBeNull()
+    expect(within(bottomNav).queryByTestId('bottom-nav-more')).not.toBeNull()
   })
 
   it('Rosie is accessible via dedicated nav tab', () => {

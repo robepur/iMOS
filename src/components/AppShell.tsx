@@ -87,7 +87,12 @@ export default function AppShell({
 
       <div className="appLayout">
         {/* Desktop navigation rail — shown on ≥768px */}
-        <nav className="desktopNav" aria-label="Primary navigation" data-testid="desktop-nav">
+        <nav
+          className="desktopNav"
+          role="navigation"
+          aria-label="Desktop primary navigation"
+          data-testid="desktop-nav"
+        >
           <div className="desktopNavBrand">
             <p className="eyebrow">INDIVIDUAL MISSION OPERATING SYSTEM</p>
             <h1 className="desktopNavTitle">iMOS</h1>
@@ -169,7 +174,12 @@ export default function AppShell({
       </div>
 
       {/* Mobile bottom navigation — hidden on desktop */}
-      <nav className="bottomNav" aria-label="Primary navigation" data-testid="bottom-nav">
+      <nav
+        className="bottomNav"
+        role="navigation"
+        aria-label="Mobile primary navigation"
+        data-testid="bottom-nav"
+      >
         <div className="bottomNavInner">
           {NAV_TABS.map(tab => {
             const Icon = tab.icon

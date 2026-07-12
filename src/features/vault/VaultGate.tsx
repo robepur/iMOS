@@ -35,6 +35,7 @@ export default function VaultGate({ state, error, onCreate, onUnlock }: {
             <input
               autoFocus
               type="password"
+              aria-label="PASSPHRASE"
               minLength={12}
               required
               value={first}
@@ -47,6 +48,7 @@ export default function VaultGate({ state, error, onCreate, onUnlock }: {
               CONFIRM PASSPHRASE
               <input
                 type="password"
+                aria-label="CONFIRM PASSPHRASE"
                 minLength={12}
                 required
                 value={confirm}
@@ -69,4 +71,3 @@ export default function VaultGate({ state, error, onCreate, onUnlock }: {
     </main>
   )
 }
-
