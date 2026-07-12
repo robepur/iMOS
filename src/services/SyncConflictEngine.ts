@@ -124,12 +124,16 @@ export function evaluateConvergence(
 
   // 5c. Remote is newer than locally accepted (remoteVer > localVer)
 
-  // Rollback detection: remote claims a parent that is behind the currently accepted version.
-  // This means the remote is trying to build a new history from a superseded ancestor.
-  if (remote.parentVersion !== undefined) {
-    if (parseVer(remote.parentVersion) < localVer) {
-      return quarantine(remote, 'rollback_attempt')
+  // Distinguish divergent histories from rollback attempts:
+  // - Divergent: remote forked from the SAME parent we forked from (same common ancestor, different paths)
+  // - Rollback: remote is trying to build from a DIFFERENT older version (unknown/discarded ancestor)
+  if (remote.parentVersion !== undefined && parseVer(remote.parentVersion) < localVer) {
+    if (remote.parentVersion === ledgerEntry.acceptedParentVersion) {
+      // Both sides evolved from the same ancestor — divergent histories, not a rollback
+      return review(remote, ledgerEntry.acceptedVersion, 'divergent_histories')
     }
+    // Remote is building from a non-shared older version — explicit rollback attempt
+    return quarantine(remote, 'rollback_attempt')
   }
 
   // Direct descendant: remote's declared parent is exactly our accepted version
