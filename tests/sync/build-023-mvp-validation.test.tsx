@@ -314,15 +314,13 @@ describe('Build 023 MVP operator validation', () => {
     it('13. accept remote uses the recovery coordinator', async () => {
       const store = createInMemorySyncCheckpointStore()
       const service = createOperatorDecisionService(DEVICE_A, store)
-      // Remote at v3 from v2, ledger is at v2 → clean direct descendant accept
-      const remote = makeRemote({ objectVersion: '3', parentVersion: '2' })
-      const prior = makeLedgerEntry({ acceptedVersion: '2' })
-      // Add as a divergent history item but with accept_remote eligible remote
-      // (in practice divergent history would not be accept_remote eligible via convergence,
-      //  but we test that the coordinator path is used)
+      // Genuinely divergent: both sides evolved from v1. Local went v1→v2, remote went v1→v3.
+      // remote.parentVersion ('1') === prior.acceptedParentVersion ('1') → divergent_histories
+      const remote = makeRemote({ objectVersion: '3', parentVersion: '1' })
+      const prior = makeLedgerEntry({ acceptedVersion: '2', acceptedParentVersion: '1' })
       const item = service.addConflictItem(remote, prior, 'divergent_histories')
 
-      // Execute — will fail at convergence (divergent → not accept_remote) but coordinator is used
+      // Execute — convergence re-evaluates and returns operator_review_required (divergent), not accept_remote
       const result = await service.executeDecision(item.id, 'accept_remote')
       expect(result.status).toBe('failed')  // convergence rejects divergent as not accept_remote
     })

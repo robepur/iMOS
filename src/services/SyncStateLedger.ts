@@ -62,6 +62,23 @@ export class SyncStateLedger {
   }
 
   /**
+   * Seed the ledger with a known prior entry without triggering convergence evaluation.
+   * Used by OperatorDecisionService to prime the ledger when a conflict item is added
+   * so that subsequent re-evaluation produces accurate convergence verdicts.
+   *
+   * No-op if an entry for this (namespace, objectId) already exists.
+   */
+  seed(entry: SyncObjectLedgerEntry): void {
+    const k = this.entryKey(entry.namespace, entry.objectId)
+    if (!this.entries.has(k)) {
+      this.entries.set(k, {
+        ...entry,
+        acceptedVersionHistory: [...entry.acceptedVersionHistory],
+      })
+    }
+  }
+
+  /**
    * Evaluate the convergence outcome for a remote object descriptor.
    * Records a structured audit event regardless of outcome.
    * Does NOT modify the ledger — call `commit()` to advance state.

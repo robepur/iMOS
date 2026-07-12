@@ -76,6 +76,11 @@ export class OperatorDecisionService {
       updatedAt: now.toISOString(),
     }
     this.items.set(id, item)
+    // Seed the internal ledger with the prior entry so convergence re-evaluation
+    // in executeDecision sees the correct prior state (divergent vs. new object).
+    if (priorEntry) {
+      this.ledger.seed(priorEntry)
+    }
     return item
   }
 
