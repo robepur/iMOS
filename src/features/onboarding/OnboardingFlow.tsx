@@ -208,7 +208,7 @@ export default function OnboardingFlow({ state, onUpdate, onComplete, onPause, o
           <button
             className="secondaryButton"
             style={{ width: '100%', marginBottom: '0.75rem' }}
-            onClick={handleRecoveryDone}
+            onClick={() => handleRecoveryDone()}
             data-testid="onboarding-recovery-done"
           >
             <CheckCircle size={16} /> I have created my recovery backup
