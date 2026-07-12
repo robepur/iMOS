@@ -87,7 +87,7 @@ describe('Build 020 sync key architecture and identity hardening', () => {
     const identity = await generateLocalDeviceIdentity('Revoked Build 020 Device', new Date(), { store })
     const trust = new DeviceTrustRegistry(identity.publicIdentity)
     const architecture = await createSyncKeyArchitecture('operator controlled recovery secret')
-    trust.revokeDevice(identity.publicIdentity.deviceId, 'operator_requested')
+    trust.revokeDevice(identity.publicIdentity.deviceId, 'operator_initiated')
 
     await expect(architecture.createDeviceGrant({
       issuerIdentity: identity.publicIdentity,
