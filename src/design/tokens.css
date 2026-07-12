@@ -1,0 +1,164 @@
+/*
+  iMOS Design System — Canonical Tokens
+  ARGUS tactical direction: navy foundation, white text hierarchy,
+  red for critical/primary action, gold for executive emphasis.
+  
+  Do not reference color values directly in component CSS.
+  Use these tokens via var() at all times.
+*/
+
+:root {
+  /* ── Colour: Navy Foundation ── */
+  --navy-950: #010810;
+  --navy-900: #020e1b;
+  --navy-850: #030e1f;
+  --navy-800: #051524;
+  --navy-750: #07213a;
+  --navy-700: #08243c;
+  --navy-650: #0a2744;
+  --navy-600: #0c3354;
+  --navy-500: #123d61;
+  --navy-400: #1a5178;
+
+  /* ── Colour: Red — Critical / Primary Action ── */
+  --red-900: #4a0808;
+  --red-800: #680f0e;
+  --red-700: #7a1210;
+  --red-600: #8f1614;
+  --red-500: #b01c1a;
+  --red-400: #c62020;
+  --red-300: #d94444;
+  --red-200: #e07070;
+  --red-100: #f0b4b2;
+
+  /* ── Colour: Gold — Executive Emphasis ── */
+  --gold-700: #7a6020;
+  --gold-600: #9a7830;
+  --gold-500: #c5a253;
+  --gold-400: #d4b56e;
+  --gold-300: #e0cb9a;
+
+  /* ── Colour: White Tonal Hierarchy ── */
+  --white-100: rgba(255, 255, 255, 1);
+  --white-90:  rgba(255, 255, 255, 0.90);
+  --white-70:  rgba(255, 255, 255, 0.70);
+  --white-55:  rgba(255, 255, 255, 0.55);
+  --white-35:  rgba(255, 255, 255, 0.35);
+  --white-20:  rgba(255, 255, 255, 0.20);
+  --white-12:  rgba(255, 255, 255, 0.12);
+  --white-08:  rgba(255, 255, 255, 0.08);
+  --white-05:  rgba(255, 255, 255, 0.05);
+  --white-03:  rgba(255, 255, 255, 0.035);
+
+  /* ── Semantic Tokens ── */
+  --bg-base:       var(--navy-900);
+  --bg-surface:    var(--navy-800);
+  --bg-elevated:   var(--navy-750);
+  --bg-card:       var(--navy-700);
+  --bg-overlay:    rgba(1, 5, 11, 0.86);
+
+  --border-strong:  var(--white-20);
+  --border-medium:  var(--white-12);
+  --border-subtle:  var(--white-08);
+  --border-faint:   var(--white-05);
+
+  --text-primary:   var(--white-100);
+  --text-secondary: var(--white-70);
+  --text-tertiary:  var(--white-55);
+  --text-muted:     var(--white-35);
+  --text-disabled:  var(--white-20);
+
+  --color-critical:  var(--red-300);
+  --color-action:    var(--red-600);
+  --color-action-hover: var(--red-500);
+  --color-emphasis:  var(--gold-500);
+  --color-emphasis-subtle: var(--gold-700);
+
+  --surface-header:  rgba(2, 14, 27, 0.97);
+  --surface-nav:     rgba(2, 11, 20, 0.98);
+  --surface-panel:   linear-gradient(180deg, rgba(3, 32, 62, 0.80), rgba(2, 14, 27, 0.92));
+
+  /* ── Typography Scale ── */
+  --text-2xs:  9px;
+  --text-xs:   10px;
+  --text-sm:   11px;
+  --text-base: 12px;
+  --text-md:   14px;
+  --text-lg:   16px;
+  --text-xl:   18px;
+  --text-2xl:  22px;
+  --text-3xl:  clamp(26px, 4vw, 42px);
+  --text-hero: clamp(34px, 5vw, 68px);
+
+  --leading-tight:  1.25;
+  --leading-normal: 1.5;
+  --leading-loose:  1.7;
+
+  --tracking-tightest: -0.01em;
+  --tracking-normal:    0;
+  --tracking-wide:      0.08em;
+  --tracking-wider:     0.12em;
+  --tracking-widest:    0.2em;
+  --tracking-tactical:  0.14em;
+
+  /* ── Spacing Scale ── */
+  --space-1:  4px;
+  --space-2:  8px;
+  --space-3:  12px;
+  --space-4:  16px;
+  --space-5:  20px;
+  --space-6:  24px;
+  --space-7:  28px;
+  --space-8:  32px;
+  --space-9:  36px;
+  --space-10: 40px;
+  --space-12: 48px;
+  --space-14: 56px;
+  --space-16: 64px;
+
+  /* ── Border Radius ── */
+  --radius-none: 0;
+  --radius-sm:   2px;
+  --radius-md:   4px;
+  --radius-lg:   8px;
+
+  /* ── Shadows ── */
+  --shadow-card:  0 4px 24px rgba(0, 0, 0, 0.32);
+  --shadow-panel: 0 24px 80px rgba(0, 0, 0, 0.32);
+  --shadow-modal: 0 40px 120px rgba(0, 0, 0, 0.64);
+
+  /* ── Touch Targets ── */
+  --touch-min: 44px;
+  --nav-height-mobile: 64px;
+  --header-height-mobile: 60px;
+  --nav-width-desktop: 220px;
+
+  /* ── Motion ── */
+  --motion-duration-fast:   100ms;
+  --motion-duration-normal: 200ms;
+  --motion-duration-slow:   300ms;
+  --motion-easing:          cubic-bezier(0.16, 1, 0.3, 1);
+
+  /* ── Breakpoints (reference values — use in @media queries) ── */
+  /* --bp-mobile:  375px  */
+  /* --bp-tablet:  768px  */
+  /* --bp-desktop: 1024px */
+  /* --bp-wide:    1440px */
+
+  /* ── Z-index Scale ── */
+  --z-content:  1;
+  --z-sticky:   10;
+  --z-nav:      20;
+  --z-drawer:   30;
+  --z-modal:    40;
+  --z-overlay:  50;
+}
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --motion-duration-fast:   0ms;
+    --motion-duration-normal: 0ms;
+    --motion-duration-slow:   0ms;
+  }
+}

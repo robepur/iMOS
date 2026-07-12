@@ -73,7 +73,7 @@ const emptyMeasurements = {
 describe('Build 024 MVP release candidate', () => {
   describe('1. release candidate metadata', () => {
     it('1. BUILD constant is 024', () => {
-      expect(BUILD).toBe('024')
+      expect(BUILD).toBe('025')
     })
 
     it('2. APP_VERSION is consistent RC format', () => {

@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
-import { Clock3, KeyRound, ListChecks, Lock, LockKeyhole, MessageSquare, Network, Route, ShieldCheck, Zap } from 'lucide-react'
+import { Clock3, Database, FileText, KeyRound, ListChecks, LockKeyhole, MessageSquare, Network, Route, ShieldCheck, ShieldX, Zap } from 'lucide-react'
 import { useVault } from './hooks/useVault'
 import { usePriorities } from './hooks/usePriorities'
 import { useSecrets } from './hooks/useSecrets'
@@ -17,6 +17,7 @@ import {
 } from './services/AdaptivePresentationEngine'
 import { runRosieOrchestration } from './services/RosieOrchestrationService'
 import { ErrorBoundary } from './components/ErrorBoundary'
+import AppShell, { type MoreItem, type NavTab } from './components/AppShell'
 import VaultGate from './features/vault/VaultGate'
 import DataPanel from './features/vault/DataPanel'
 import { Arrival, Brief, FocusView, Reflection, TimelineItem } from './features/arrival/OperatingLoop'
@@ -45,10 +46,10 @@ export default function App() {
   const { understanding } = useUnderstanding(vault.data)
 
   const [mode, setMode] = useState<Mode>('arrival')
+  const [activeTab, setActiveTab] = useState<NavTab>('home')
   const [showDataPanel, setShowDataPanel] = useState(false)
   const [showRecovery, setShowRecovery] = useState(false)
   const [showSecrets, setShowSecrets] = useState(false)
-  const [showPriorities, setShowPriorities] = useState(false)
   const [showReflections, setShowReflections] = useState(false)
   const [showReview, setShowReview] = useState(false)
   const [showKnowledge, setShowKnowledge] = useState(false)
@@ -56,6 +57,8 @@ export default function App() {
   const [showRosieCenter, setShowRosieCenter] = useState(false)
   const [showPilotFeedback, setShowPilotFeedback] = useState(false)
   const [showOnboardingReview, setShowOnboardingReview] = useState(false)
+  const [showTimeline, setShowTimeline] = useState(false)
+  const [showPriorities, setShowPriorities] = useState(false)
 
   const date = useMemo(() => new Intl.DateTimeFormat('en-US', { weekday: 'long', month: 'long', day: 'numeric' }).format(new Date()), [])
 
@@ -183,42 +186,52 @@ export default function App() {
   const missionPresentation = profile ? resolveSurfacePresentation(profile, 'mission_planning') : undefined
   const proposedSignalsCount = (data.cognitiveSignals ?? []).filter((signal) => signal.status === 'proposed').length
   const proposedUnderstandingsCount = (data.operatorUnderstandings ?? []).filter((item) => item.state === 'proposed').length
-  const rosieHasAlerts = recs.length > 0 || proposedSignalsCount > 0 || proposedUnderstandingsCount > 0
+  const rosieAlertCount = recs.length + proposedSignalsCount + proposedUnderstandingsCount
+
+  // Navigation tab handler — maps destinations to panel opens
+  function handleTabChange(tab: NavTab) {
+    setActiveTab(tab)
+    if (tab === 'home')     { /* content renders inline */ }
+    if (tab === 'focus')    { setShowPriorities(true) }
+    if (tab === 'missions') { setShowMissions(true) }
+    if (tab === 'rosie')    { setShowRosieCenter(true) }
+  }
 
   const stateItems = [
-    ['Executive State', mode === 'focus' ? 'Focused' : 'Aware'],
-    ['Vault', vault.saving ? 'Securing' : 'Encrypted'],
-    ['Priorities', criticalCount ? `${criticalCount} Critical` : activePriorities.length ? `${activePriorities.length} Active` : 'Clear'],
+    ['State',       mode === 'focus' ? 'Focused' : 'Aware'],
+    ['Vault',       vault.saving ? 'Securing' : 'Encrypted'],
+    ['Priorities',  criticalCount ? `${criticalCount} Critical` : activePriorities.length ? `${activePriorities.length} Active` : 'Clear'],
     ['Commitments', openCommitments ? `${openCommitments} Open` : 'On Track'],
-    ['Rosie', recCritical > 0 ? `${recCritical} Critical` : recs.length > 0 ? `${recs.length} Recs` : 'Clear'],
-    ['Graph', graphStats.totalEdges > 0 ? `${graphStats.totalEdges} Links` : 'Building'],
+    ['Rosie',       recCritical > 0 ? `${recCritical} Critical` : recs.length > 0 ? `${recs.length} Recs` : 'Clear'],
+    ['Graph',       graphStats.totalEdges > 0 ? `${graphStats.totalEdges} Links` : 'Building'],
+  ]
+
+  const moreItems: MoreItem[] = [
+    { id: 'vault',      label: 'VAULT',       icon: LockKeyhole,   onClick: () => setShowDataPanel(v => !v) },
+    { id: 'secrets',    label: 'SECRETS',     icon: KeyRound,      onClick: () => setShowSecrets(true) },
+    { id: 'recovery',   label: 'RECOVERY',    icon: ShieldCheck,   onClick: () => setShowRecovery(true) },
+    { id: 'review',     label: 'REVIEW',      icon: ShieldX,       onClick: () => setShowReview(true) },
+    { id: 'knowledge',  label: 'KNOWLEDGE',   icon: Network,       onClick: () => setShowKnowledge(true) },
+    { id: 'reflections',label: 'REFLECTIONS', icon: FileText,      onClick: () => setShowReflections(true) },
+    { id: 'timeline',   label: 'TIMELINE',    icon: Clock3,        onClick: () => setShowTimeline(v => !v) },
+    { id: 'feedback',   label: 'FEEDBACK',    icon: MessageSquare, onClick: () => setShowPilotFeedback(true) },
+    { id: 'missions',   label: 'MISSIONS',    icon: Route,         onClick: () => setShowMissions(true) },
   ]
 
   return (
-    <main className="shell">
-      <header className="topbar">
-        <div><p className="eyebrow">INDIVIDUAL MISSION OPERATING SYSTEM</p><h1>iMOS</h1></div>
-        <div className="topActions">
-          <button className="utilityButton" onClick={() => setShowReview(true)}><ShieldCheck size={16} /> REVIEW</button>
-          <button className={`utilityButton${rosieHasAlerts ? ' utilityButton--alert' : ''}`} onClick={() => setShowRosieCenter(true)}>
-            <Zap size={16} /> ROSIE{recs.length > 0 ? ` (${recs.length})` : ''}
-          </button>
-          <button className="utilityButton" onClick={() => setShowMissions(true)}><Route size={16} /> MISSION</button>
-          <button className="utilityButton" onClick={() => setShowKnowledge(true)}><Network size={16} /> KNOWLEDGE</button>
-          <button className="utilityButton" onClick={() => setShowPriorities(true)}><ListChecks size={16} /> PRIORITIES</button>
-          <button className="utilityButton" onClick={() => setShowSecrets(true)}><KeyRound size={16} /> SECRETS</button>
-          <button className="utilityButton" onClick={() => setShowDataPanel((v) => !v)}><LockKeyhole size={16} /> VAULT</button>
-          <button className="utilityButton" onClick={() => setShowPilotFeedback(true)}><MessageSquare size={16} /> FEEDBACK</button>
-          <button className="utilityButton" onClick={vault.lock}><Lock size={16} /> LOCK</button>
-          <div className="secure"><ShieldCheck size={17} /> ENCRYPTED MODE</div>
-        </div>
-      </header>
-
+    <AppShell
+      activeTab={activeTab}
+      onTabChange={handleTabChange}
+      rosieAlertCount={rosieAlertCount}
+      saving={vault.saving}
+      onLock={vault.lock}
+      moreItems={moreItems}
+    >
       {showDataPanel && <DataPanel onClose={() => setShowDataPanel(false)} onOpenRecovery={() => setShowRecovery(true)} onReset={vault.reset} onBackup={vault.exportVaultBackup} />}
 
       <ErrorBoundary>
         <Suspense fallback={null}>
-          {showPriorities && <PriorityConsole priorities={data.priorities} onChange={vault.updatePriorities} onClose={() => setShowPriorities(false)} />}
+          {showPriorities && <PriorityConsole priorities={data.priorities} onChange={vault.updatePriorities} onClose={() => { setShowPriorities(false); setActiveTab('home') }} />}
           {showSecrets && <SecretsConsole records={secrets.records} onChange={vault.updateSecrets} onClose={() => setShowSecrets(false)} />}
           {showRecovery && <RecoveryConsole data={data} onClose={() => setShowRecovery(false)} onRestore={vault.restoreVault} onRotate={vault.rotateVaultPassphrase} onAudit={vault.recordRecoveryAuditEvent} />}
           {showReflections && <ReflectionHistory reflections={data.reflections} onDelete={vault.deleteReflection} onClose={() => setShowReflections(false)} />}
@@ -226,7 +239,7 @@ export default function App() {
           {showMissions && (
             <MissionPlanner
               data={data}
-              onClose={() => setShowMissions(false)}
+              onClose={() => { setShowMissions(false); setActiveTab('home') }}
               onSaveMissionPlan={vault.saveMissionPlan}
               onSetMissionPlanStatus={vault.setMissionPlanStatus}
               onUpdateMissionPlan={vault.updateMissionPlan}
@@ -239,12 +252,12 @@ export default function App() {
               presentation={missionPresentation}
             />
           )}
-          {showKnowledge && <KnowledgeGraphViewer graph={graph} onClose={() => setShowKnowledge(false)} />}
+          {showKnowledge && <KnowledgeGraphViewer graph={graph} onClose={() => { setShowKnowledge(false); setActiveTab('home') }} />}
           {showRosieCenter && (
             <RosieCenter
               data={data}
               recs={recs}
-              onClose={() => setShowRosieCenter(false)}
+              onClose={() => { setShowRosieCenter(false); setActiveTab('home') }}
               onSuppressSignal={vault.suppressCognitiveSignal}
               onConfirmUnderstanding={vault.confirmOperatorUnderstanding}
               onCorrectUnderstanding={vault.correctOperatorUnderstanding}
@@ -290,20 +303,24 @@ export default function App() {
         </Suspense>
       </ErrorBoundary>
 
-      <section className="statebar">{stateItems.map(([label, value]) => <div key={label}><span>{label}</span><strong>{value}</strong></div>)}</section>
+      <section className="statebar" data-testid="statebar">
+        {stateItems.map(([label, value]) => <div key={label}><span>{label}</span><strong>{value}</strong></div>)}
+      </section>
 
-      <section className="workspace">
+      <section className="workspace" data-testid="workspace">
         <div className="primary panel">
-          {mode === 'arrival' && <Arrival date={date} data={data} primary={primary} onBegin={() => setMode('brief')} />}
-          {mode === 'brief' && <Brief data={data} overdueCount={overdueCount} criticalCount={criticalCount} secretCount={secrets.count} morningBrief={morningBrief} morningObservations={morningObservations} onAddCommitment={vault.addCommitment} onAddDecision={vault.addDecision} onToggleCommitment={vault.toggleCommitment} onToggleDecision={vault.toggleDecision} onOpenPriorities={() => setShowPriorities(true)} onOpenReflectionHistory={() => setShowReflections(true)} onBegin={() => setMode('focus')} presentation={briefingPresentation} />}
-          {mode === 'focus' && <FocusView primary={primary} onCompletePriority={() => primary && vault.completePrimaryPriority(primary)} onComplete={() => setMode('reflection')} />}
+          {mode === 'arrival'    && <Arrival date={date} data={data} primary={primary} onBegin={() => setMode('brief')} />}
+          {mode === 'brief'      && <Brief data={data} overdueCount={overdueCount} criticalCount={criticalCount} secretCount={secrets.count} morningBrief={morningBrief} morningObservations={morningObservations} onAddCommitment={vault.addCommitment} onAddDecision={vault.addDecision} onToggleCommitment={vault.toggleCommitment} onToggleDecision={vault.toggleDecision} onOpenPriorities={() => setShowPriorities(true)} onOpenReflectionHistory={() => setShowReflections(true)} onBegin={() => setMode('focus')} presentation={briefingPresentation} />}
+          {mode === 'focus'      && <FocusView primary={primary} onCompletePriority={() => primary && vault.completePrimaryPriority(primary)} onComplete={() => setMode('reflection')} />}
           {mode === 'reflection' && <Reflection eveningSummary={eveningSummary} eveningObservations={eveningObservations} onSave={(a, r, t) => { vault.saveReflection(a, r, t); setMode('arrival') }} />}
         </div>
-        <aside className="timeline panel">
-          <div className="panelTitle"><Clock3 size={17} /><span>EXECUTIVE TIMELINE</span></div>
-          {data.timeline.slice(0, 8).map((entry) => <TimelineItem key={entry.id} entry={entry} />)}
-        </aside>
+        {showTimeline && (
+          <aside className="timeline panel" data-testid="timeline-panel">
+            <div className="panelTitle"><Clock3 size={17} aria-hidden="true" /><span>EXECUTIVE TIMELINE</span></div>
+            {data.timeline.slice(0, 8).map((entry) => <TimelineItem key={entry.id} entry={entry} />)}
+          </aside>
+        )}
       </section>
-    </main>
+    </AppShell>
   )
 }
