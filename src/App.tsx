@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
-import { Clock3, KeyRound, ListChecks, Lock, LockKeyhole, Network, Route, ShieldCheck, Zap } from 'lucide-react'
+import { Clock3, KeyRound, ListChecks, Lock, LockKeyhole, MessageSquare, Network, Route, ShieldCheck, Zap } from 'lucide-react'
 import { useVault } from './hooks/useVault'
 import { usePriorities } from './hooks/usePriorities'
 import { useSecrets } from './hooks/useSecrets'
@@ -21,6 +21,9 @@ import VaultGate from './features/vault/VaultGate'
 import DataPanel from './features/vault/DataPanel'
 import { Arrival, Brief, FocusView, Reflection, TimelineItem } from './features/arrival/OperatingLoop'
 import PriorityConsole from './features/priorities/PriorityConsole'
+import OnboardingFlow, { OnboardingReview } from './features/onboarding/OnboardingFlow'
+import { ONBOARDING_SCHEMA_VERSION } from './types/onboarding'
+import type { PilotMeasurements } from './types/pilotFeedback'
 
 const ReviewCenter = lazy(() => import('./features/review/ReviewCenter'))
 const RecoveryConsole = lazy(() => import('./features/recovery/RecoveryConsole'))
@@ -29,6 +32,7 @@ const ReflectionHistory = lazy(() => import('./features/reflection/ReflectionHis
 const KnowledgeGraphViewer = lazy(() => import('./features/knowledge/KnowledgeGraphViewer'))
 const MissionPlanner = lazy(() => import('./features/missions/MissionPlanner'))
 const RosieCenter = lazy(() => import('./features/rosie/RosieCenter'))
+const PilotFeedbackPanel = lazy(() => import('./features/pilot/PilotFeedbackPanel'))
 
 type Mode = 'arrival' | 'brief' | 'focus' | 'reflection'
 
@@ -50,6 +54,8 @@ export default function App() {
   const [showKnowledge, setShowKnowledge] = useState(false)
   const [showMissions, setShowMissions] = useState(false)
   const [showRosieCenter, setShowRosieCenter] = useState(false)
+  const [showPilotFeedback, setShowPilotFeedback] = useState(false)
+  const [showOnboardingReview, setShowOnboardingReview] = useState(false)
 
   const date = useMemo(() => new Intl.DateTimeFormat('en-US', { weekday: 'long', month: 'long', day: 'numeric' }).format(new Date()), [])
 
@@ -123,6 +129,48 @@ export default function App() {
   }
 
   const { data } = vault
+
+  // Onboarding: show flow if not yet completed
+  const onboarding = data.onboardingState
+  const onboardingIncomplete = !onboarding || onboarding.status === 'not_started' || onboarding.status === 'in_progress' || onboarding.status === 'paused'
+  if (onboardingIncomplete) {
+    const activeState = onboarding ?? {
+      schemaVersion: ONBOARDING_SCHEMA_VERSION,
+      status: 'in_progress' as const,
+      currentStepIndex: 0,
+      completedStepIds: [],
+      recoveryBackupConfirmed: false,
+      startedAt: new Date().toISOString(),
+      lastUpdatedAt: new Date().toISOString(),
+    }
+    return (
+      <OnboardingFlow
+        state={activeState}
+        onUpdate={vault.saveOnboardingState}
+        onComplete={() => vault.saveOnboardingState({ ...activeState, status: 'completed', completedAt: new Date().toISOString(), lastUpdatedAt: new Date().toISOString() })}
+        onPause={() => vault.saveOnboardingState({ ...activeState, status: 'paused', lastUpdatedAt: new Date().toISOString() })}
+        onOpenRecovery={() => setShowRecovery(true)}
+      />
+    )
+  }
+
+  // Pilot measurements (computed, private, never transmitted)
+  const pilotFeedback = data.pilotFeedback ?? []
+  const briefingFeedback = pilotFeedback.filter(e => e.rosieSurface === 'daily_briefing' || e.rosieSurface === 'morning_brief')
+  const recFeedback = pilotFeedback.filter(e => e.rosieSurface === 'recommendation')
+  const pilotMeasurements: PilotMeasurements = {
+    briefingUsefulness: briefingFeedback.length ? briefingFeedback.reduce((s, e) => s + e.usefulness, 0) / briefingFeedback.length : null,
+    recommendationUsefulness: recFeedback.length ? recFeedback.reduce((s, e) => s + e.usefulness, 0) / recFeedback.length : null,
+    averageCognitiveEffort: pilotFeedback.length ? pilotFeedback.reduce((s, e) => s + e.cognitiveEffort, 0) / pilotFeedback.length : null,
+    correctionCount: (data.operatorUnderstandings ?? []).filter(u => u.state === 'operator_corrected').length,
+    rejectedRecommendationCount: (data.recommendations ?? []).filter(r => r.dismissed).length,
+    acceptedRecommendationCount: (data.recommendations ?? []).filter(r => r.completed).length,
+    missingContextReports: pilotFeedback.filter(e => e.missingContext).length,
+    trustConcernReports: pilotFeedback.filter(e => e.trustConcern).length,
+    dailyWorkflowCompletions: data.reflections.length,
+    backupReady: onboarding.recoveryBackupConfirmed,
+    totalFeedbackEntries: pilotFeedback.length,
+  }
   const morningBrief = RosieEngine.getMorningBrief(data)
   const eveningSummary = RosieEngine.getEveningSummary(data)
   const openCommitments = data.commitments.filter((c) => c.status === 'open').length
@@ -160,6 +208,7 @@ export default function App() {
           <button className="utilityButton" onClick={() => setShowPriorities(true)}><ListChecks size={16} /> PRIORITIES</button>
           <button className="utilityButton" onClick={() => setShowSecrets(true)}><KeyRound size={16} /> SECRETS</button>
           <button className="utilityButton" onClick={() => setShowDataPanel((v) => !v)}><LockKeyhole size={16} /> VAULT</button>
+          <button className="utilityButton" onClick={() => setShowPilotFeedback(true)}><MessageSquare size={16} /> FEEDBACK</button>
           <button className="utilityButton" onClick={vault.lock}><Lock size={16} /> LOCK</button>
           <div className="secure"><ShieldCheck size={17} /> ENCRYPTED MODE</div>
         </div>
@@ -227,6 +276,17 @@ export default function App() {
               onSnoozeRec={vault.snoozeRecommendation}
             />
           )}
+          {showPilotFeedback && (
+            <PilotFeedbackPanel
+              entries={pilotFeedback}
+              measurements={pilotMeasurements}
+              onAdd={vault.addPilotFeedback}
+              onUpdate={vault.updatePilotFeedback}
+              onDelete={vault.deletePilotFeedback}
+              onClose={() => setShowPilotFeedback(false)}
+            />
+          )}
+          {showOnboardingReview && <OnboardingReview onClose={() => setShowOnboardingReview(false)} />}
         </Suspense>
       </ErrorBoundary>
 
