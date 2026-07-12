@@ -191,3 +191,16 @@ export type {
   SyncRecoveryAuditEvent,
   StartupRecoveryResult,
 } from './syncRecovery'
+
+export type {
+  SyncReviewSchemaVersion,
+  SyncReviewItemKind,
+  SyncReviewItemStatus,
+  OperatorDecisionAction,
+  SyncReviewItem,
+  OperatorDecisionRecord,
+  OperatorDecisionAuditAction,
+  OperatorDecisionAuditEvent,
+  DecisionValidationResult,
+  SyncReviewQueueSummary,
+} from './syncReview'
