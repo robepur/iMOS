@@ -1,7 +1,12 @@
 import type { SyncRecoveryTransaction } from '../types/syncRecovery'
 
-/** Terminal states — transactions in these states are considered complete. */
-const TERMINAL_STATES = new Set<SyncRecoveryTransaction['state']>(['confirmed'])
+/** Terminal states — transactions in these states need no further startup processing. */
+const TERMINAL_STATES = new Set<SyncRecoveryTransaction['state']>([
+  'confirmed',
+  'recovered',
+  'quarantined',
+  'failed_closed',
+])
 
 /**
  * Contract for a durable synchronization checkpoint store.
