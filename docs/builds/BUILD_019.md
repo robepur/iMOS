@@ -41,7 +41,7 @@ Build 019 defines a minimum visible metadata envelope:
 - object version and optional parent version
 - protocol/envelope/schema/crypto versions
 - ciphertext byte length
-- ciphertext digest
+- ciphertext digest (derived from ciphertext bytes, not plaintext)
 - request id and replay id
 - created and expiry timestamps
 - tombstone flag
@@ -54,9 +54,11 @@ Any envelope expansion is a reviewed architecture change.
 - Fetch usage is constrained to one approved adapter file and enforced by security boundary scan exceptions.
 - Redirects are denied by policy.
 - Requests are signed with Build 018 device identity and validated before decrypt.
+- Downloaded envelopes are verified against the actual trusted signer identity, not assumed to be local-only.
 - Replay IDs are one-time use with expiry.
 - Remote responses are treated as untrusted input and can be quarantined.
 - Sync remains operator-controlled and disabled by default.
+- Persisted envelope reads do not burn replay state merely by being downloaded again.
 
 ## Migration and rollback
 
@@ -71,4 +73,3 @@ Any envelope expansion is a reviewed architecture change.
 - No hosted synchronization workflow is activated.
 - No multi-device enrollment flow is started.
 - No Build 020 behavior is implemented.
-

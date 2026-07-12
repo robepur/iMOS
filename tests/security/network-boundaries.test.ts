@@ -43,7 +43,7 @@ describe('Network boundary security scan', () => {
     }
     walk(srcDir)
     const filesUsingFetch = tsFiles
-      .filter((file) => fs.readFileSync(file, 'utf8').match(/\bfetch\s*\(/))
+      .filter((file) => fs.readFileSync(file, 'utf8').match(/(?:\bfetch\s*\(|\b(?:globalThis|window|self)\s*\.\s*fetch\s*\(|\b(?:globalThis|window|self)\s*\[\s*['"`]fetch['"`]\s*\]\s*\()/))
       .map((file) => path.relative(root, file).replace(/\\/g, '/'))
       .sort()
     expect(filesUsingFetch).toEqual(['src/services/SyncTransportAdapter.ts'])

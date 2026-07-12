@@ -5,7 +5,7 @@ const root = process.cwd()
 const srcDir = path.join(root, 'src')
 
 const blockedPatterns = [
-  { label: 'fetch', regex: /\bfetch\s*\(/ },
+  { label: 'fetch', regex: /(?:\bfetch\s*\(|\b(?:globalThis|window|self)\s*\.\s*fetch\s*\(|\b(?:globalThis|window|self)\s*\[\s*['"`]fetch['"`]\s*\]\s*\()/ },
   { label: 'XMLHttpRequest', regex: /\bXMLHttpRequest\b/ },
   { label: 'axios', regex: /\baxios\b/ },
   { label: 'WebSocket', regex: /\bWebSocket\b/ },

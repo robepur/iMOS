@@ -8,6 +8,7 @@ import { createSyncTransportAdapter } from '../../src/services/SyncTransportAdap
 import { createSyncQuarantineService } from '../../src/services/SyncQuarantineService'
 import { SyncService } from '../../src/services/SyncService'
 import {
+  createEnrollmentPackage,
   generateLocalDeviceIdentity,
   InMemoryDevicePrivateKeyStore,
 } from '../../src/services/DeviceIdentityService'
@@ -85,6 +86,26 @@ afterEach(async () => {
 })
 
 describe('Build 019 sync foundation', () => {
+  async function trustRemoteDevice(
+    registry: DeviceTrustRegistry,
+    identity: Awaited<ReturnType<typeof generateLocalDeviceIdentity>>,
+    now = new Date(),
+  ) {
+    const pkg = await createEnrollmentPackage(identity.publicIdentity, { now, nonce: crypto.randomUUID().replace(/-/g, '') })
+    const proposed = await registry.proposeEnrollment(pkg, now)
+    expect(proposed.ok).toBe(true)
+    const verified = registry.markProofVerified(identity.publicIdentity.deviceId, now)
+    expect(verified.ok).toBe(true)
+    const approved = registry.approveDevice(identity.publicIdentity.deviceId, {
+      approvedBy: 'local_operator',
+      approvedAt: now.toISOString(),
+      rationale: 'Trusted for sync test.',
+    }, now)
+    expect(approved.ok).toBe(true)
+    const activated = registry.activateDevice(identity.publicIdentity.deviceId, now)
+    expect(activated.ok).toBe(true)
+  }
+
   it('enforces deny-by-default until explicit operator enable and local endpoint configuration', async () => {
     const adapter = createSyncTransportAdapter()
     const envelope = {
@@ -160,6 +181,15 @@ describe('Build 019 sync foundation', () => {
     expect(downloaded.result.kind).toBe('found')
     expect(downloaded.plaintext).toBe('{"decision":"stay local"}')
     expect(downloaded.quarantined).toBeUndefined()
+
+    const downloadedAgain = await service.downloadAndDecrypt({
+      namespace: 'sync:operator',
+      objectId: 'obj:decision-1',
+      decryptionKey: key,
+    })
+    expect(downloadedAgain.result.kind).toBe('found')
+    expect(downloadedAgain.plaintext).toBe('{"decision":"stay local"}')
+    expect(downloadedAgain.quarantined).toBeUndefined()
   })
 
   it('fails closed on malformed response content-type', async () => {
@@ -239,6 +269,99 @@ describe('Build 019 sync foundation', () => {
     expect(first.ok).toBe(true)
     expect(second.ok).toBe(false)
     if (!second.ok) expect(second.error.code).toBe('replay_detected')
+  })
+
+  it('uses ciphertext-derived visible digests so identical plaintext does not produce stable metadata', async () => {
+    const envelopeService = createSyncEnvelopeService()
+    const store = new InMemoryDevicePrivateKeyStore()
+    const identity = await generateLocalDeviceIdentity('Digest Device', new Date(), { store })
+    const key = await envelopeService.createDataKey()
+    const first = await envelopeService.encryptEnvelope({
+      namespace: 'sync:operator',
+      objectId: 'obj:digest-a',
+      objectVersion: '1',
+      signerDeviceId: identity.publicIdentity.deviceId,
+      plaintext: '{"marker":"repeat"}',
+      key,
+      requestId: 'request-digest-1',
+      replayId: 'replay-digest-1',
+      createdAt: new Date().toISOString(),
+      expiresAt: new Date(Date.now() + 60_000).toISOString(),
+    })
+    const second = await envelopeService.encryptEnvelope({
+      namespace: 'sync:operator',
+      objectId: 'obj:digest-b',
+      objectVersion: '1',
+      signerDeviceId: identity.publicIdentity.deviceId,
+      plaintext: '{"marker":"repeat"}',
+      key,
+      requestId: 'request-digest-2',
+      replayId: 'replay-digest-2',
+      createdAt: new Date().toISOString(),
+      expiresAt: new Date(Date.now() + 60_000).toISOString(),
+    })
+    expect(first.envelope.ciphertextDigest).not.toBe(second.envelope.ciphertextDigest)
+  })
+
+  it('accepts downloads signed by another trusted device', async () => {
+    const server = await startReferenceServer()
+    activeClosers.push(server.close)
+
+    const localStore = new InMemoryDevicePrivateKeyStore()
+    const localIdentity = await generateLocalDeviceIdentity('Local Device', new Date(), { store: localStore })
+    const trust = new DeviceTrustRegistry(localIdentity.publicIdentity)
+
+    const remoteStore = new InMemoryDevicePrivateKeyStore()
+    const remoteIdentity = await generateLocalDeviceIdentity('Remote Device', new Date(), { store: remoteStore })
+    await trustRemoteDevice(trust, remoteIdentity)
+
+    const envelopeService = createSyncEnvelopeService()
+    const uploaderProtocol = createSyncProtocolService()
+    const quarantine = createSyncQuarantineService()
+    const uploadAdapter = createSyncTransportAdapter()
+    uploadAdapter.configureLocalEndpoint(server.baseUrl)
+    uploadAdapter.setEnabled(true)
+    const uploader = new SyncService(
+      envelopeService,
+      uploaderProtocol,
+      quarantine,
+      uploadAdapter,
+      remoteIdentity.publicIdentity,
+      remoteIdentity.privateHandle,
+      trust,
+      remoteStore,
+    )
+    const key = await envelopeService.createDataKey()
+    const ack = await uploader.uploadPlaintext({
+      namespace: 'sync:operator',
+      objectId: 'obj:remote-signed',
+      objectVersion: '1',
+      plaintext: '{"from":"remote"}',
+      encryptionKey: key,
+    })
+    expect('accepted' in ack && ack.accepted).toBe(true)
+
+    const downloadAdapter = createSyncTransportAdapter()
+    downloadAdapter.configureLocalEndpoint(server.baseUrl)
+    downloadAdapter.setEnabled(true)
+    const downloader = new SyncService(
+      envelopeService,
+      createSyncProtocolService(),
+      createSyncQuarantineService(),
+      downloadAdapter,
+      localIdentity.publicIdentity,
+      localIdentity.privateHandle,
+      trust,
+      localStore,
+    )
+    const downloaded = await downloader.downloadAndDecrypt({
+      namespace: 'sync:operator',
+      objectId: 'obj:remote-signed',
+      decryptionKey: key,
+    })
+    expect(downloaded.result.kind).toBe('found')
+    expect(downloaded.plaintext).toBe('{"from":"remote"}')
+    expect(downloaded.quarantined).toBeUndefined()
   })
 
   it('preserves local-only defaults and additive migration compatibility', () => {

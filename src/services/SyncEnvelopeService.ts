@@ -21,8 +21,8 @@ function base64ToBytes(value: string): Uint8Array {
   return Uint8Array.from(binary, (character) => character.charCodeAt(0))
 }
 
-async function sha256Base64(value: string): Promise<string> {
-  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value))
+async function sha256Base64Bytes(value: Uint8Array): Promise<string> {
+  const digest = await crypto.subtle.digest('SHA-256', value)
   return bytesToBase64(new Uint8Array(digest))
 }
 
@@ -51,7 +51,6 @@ export class SyncEnvelopeService {
       envelopeVersion: metadata.envelopeVersion,
       schemaVersion: metadata.schemaVersion,
       cryptoSuiteVersion: metadata.cryptoSuiteVersion,
-      ciphertextDigest: metadata.ciphertextDigest,
       requestId: metadata.requestId,
       replayId: metadata.replayId,
       createdAt: metadata.createdAt,
@@ -78,7 +77,6 @@ export class SyncEnvelopeService {
     assertValidTimestamp(input.createdAt)
     assertValidTimestamp(input.expiresAt)
     const iv = crypto.getRandomValues(new Uint8Array(IV_BYTES))
-    const encryptedPayloadDigest = await sha256Base64(input.plaintext)
     const metadata: SyncVisibleRoutingMetadata = {
       namespace: input.namespace,
       objectId: input.objectId,
@@ -88,8 +86,8 @@ export class SyncEnvelopeService {
       envelopeVersion: '1.0.0',
       schemaVersion: '1.0.0',
       cryptoSuiteVersion: '1.0.0',
-      ciphertextByteLength: new TextEncoder().encode(input.plaintext).byteLength,
-      ciphertextDigest: encryptedPayloadDigest,
+      ciphertextByteLength: 0,
+      ciphertextDigest: '',
       requestId: input.requestId,
       replayId: input.replayId,
       createdAt: input.createdAt,
@@ -105,6 +103,9 @@ export class SyncEnvelopeService {
     const encryptedBytes = new Uint8Array(encrypted)
     const ciphertext = encryptedBytes.slice(0, encryptedBytes.length - 16)
     const authTag = encryptedBytes.slice(encryptedBytes.length - 16)
+    const ciphertextDigest = await sha256Base64Bytes(ciphertext)
+    metadata.ciphertextByteLength = ciphertext.byteLength
+    metadata.ciphertextDigest = ciphertextDigest
     const envelope: EncryptedSyncEnvelope = {
       protocolVersion: '1.0.0',
       envelopeVersion: '1.0.0',
@@ -118,7 +119,7 @@ export class SyncEnvelopeService {
       iv: bytesToBase64(iv),
       encryptedMetadata: bytesToBase64(this.createAAD(metadata)),
       authTag: bytesToBase64(authTag),
-      ciphertextDigest: encryptedPayloadDigest,
+      ciphertextDigest: ciphertextDigest,
       signerDeviceId: input.signerDeviceId,
       signature: '',
       requestId: input.requestId,
@@ -153,6 +154,9 @@ export class SyncEnvelopeService {
       expiresAt: input.envelope.expiresAt,
       tombstone: input.envelope.tombstone,
     }
+    if (input.envelope.encryptedMetadata !== bytesToBase64(this.createAAD(metadata))) {
+      throw new Error('Envelope metadata binding mismatch.')
+    }
     const iv = base64ToBytes(input.envelope.iv)
     const ciphertext = base64ToBytes(input.envelope.encryptedPayload)
     const authTag = base64ToBytes(input.envelope.authTag)
@@ -171,4 +175,3 @@ export class SyncEnvelopeService {
 export function createSyncEnvelopeService(): SyncEnvelopeService {
   return new SyncEnvelopeService()
 }
-

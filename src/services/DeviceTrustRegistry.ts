@@ -324,6 +324,12 @@ export class DeviceTrustRegistry {
     return record.status === 'active' && record.trustState === 'trusted' && record.revocationState === 'none'
   }
 
+  getPublicIdentity(deviceId: DeviceIdentifier): DevicePublicIdentity | null {
+    const record = this.records.get(deviceId)
+    if (!record) return null
+    return { ...record.publicIdentity }
+  }
+
   listByStatus(status: DeviceStatus): DeviceTrustRecord[] {
     return [...this.records.values()]
       .filter(record => record.status === status)

@@ -24,6 +24,12 @@ export class SyncService {
     private readonly keyStore?: DevicePrivateKeyStore,
   ) {}
 
+  private resolveSignerIdentity(deviceId: DevicePublicIdentity['deviceId']): DevicePublicIdentity | null {
+    if (deviceId === this.signerIdentity.deviceId) return this.signerIdentity
+    if (!this.trustRegistry) return null
+    return this.trustRegistry.getPublicIdentity(deviceId)
+  }
+
   async uploadPlaintext(input: {
     namespace: `sync:${string}`
     objectId: `obj:${string}`
@@ -54,7 +60,7 @@ export class SyncService {
       expiresAt,
       tombstone: input.tombstone,
     })
-    const validation = this.protocolService.validateEnvelope(encrypted.envelope, now, false)
+    const validation = await this.protocolService.validateEnvelope(encrypted.envelope, now, false)
     if (!validation.ok) throw new Error(validation.error.message)
     const signedRequest = await this.protocolService.createSignedRequest({
       method: 'upload',
@@ -90,7 +96,7 @@ export class SyncService {
       objectId: input.objectId,
     })
     if (response.kind !== 'found') return { result: response }
-    const envelopeValidation = this.protocolService.validateEnvelope(response.envelope)
+    const envelopeValidation = await this.protocolService.validateEnvelope(response.envelope, input.now ?? new Date(), false)
     if (!envelopeValidation.ok) {
       return {
         result: response,
@@ -100,6 +106,20 @@ export class SyncService {
           namespace: response.envelope.namespace,
           objectId: response.envelope.objectId,
           detail: envelopeValidation.error.message,
+          now: input.now,
+        }),
+      }
+    }
+    const signerIdentity = this.resolveSignerIdentity(response.envelope.signerDeviceId)
+    if (!signerIdentity) {
+      return {
+        result: response,
+        quarantined: this.quarantineService.quarantine({
+          reason: 'unknown_device',
+          requestId: response.requestId,
+          namespace: response.envelope.namespace,
+          objectId: response.envelope.objectId,
+          detail: 'Downloaded envelope signer is not trusted locally.',
           now: input.now,
         }),
       }
@@ -120,7 +140,7 @@ export class SyncService {
         expiresAt: response.envelope.expiresAt,
         signature: response.envelope.signature,
       },
-      signerIdentity: this.signerIdentity,
+      signerIdentity,
       trustRegistry: this.trustRegistry,
       now: input.now,
     })

@@ -14,6 +14,11 @@ const MAX_ALLOWED_FUTURE_SKEW_MS = 60_000
 const MAX_REQUEST_TTL_MS = 5 * 60_000
 const MAX_CIPHERTEXT_BYTES = 1024 * 1024
 
+function base64ToBytes(value: string): Uint8Array {
+  const binary = atob(value)
+  return Uint8Array.from(binary, (character) => character.charCodeAt(0))
+}
+
 function isIso(value: string): boolean {
   return typeof value === 'string' && Number.isFinite(Date.parse(value))
 }
@@ -32,6 +37,17 @@ function nowMs(now = new Date()): number {
 
 function utf8ByteLength(input: string): number {
   return new TextEncoder().encode(input).byteLength
+}
+
+function bytesToBase64(bytes: Uint8Array): string {
+  let binary = ''
+  bytes.forEach((byte) => { binary += String.fromCharCode(byte) })
+  return btoa(binary)
+}
+
+async function sha256Base64Bytes(value: Uint8Array): Promise<string> {
+  const digest = await crypto.subtle.digest('SHA-256', value)
+  return bytesToBase64(new Uint8Array(digest))
 }
 
 function canonicalSyncPayload(input: {
@@ -179,9 +195,6 @@ export class SyncProtocolService {
     if (trustRegistry && !trustRegistry.canAuthorize(request.signerDeviceId)) {
       return { ok: false, error: fail('validation_failed', 'Signer is not trusted and active.', request.requestId) }
     }
-    if (!this.replayGuard.consumeOnce(`signed:${request.replayId}`, request.expiresAt, now)) {
-      return { ok: false, error: fail('replay_detected', 'Signed request replay detected.', request.requestId) }
-    }
     const verification = await verifyDevicePayloadSignature(
       signerIdentity,
       canonicalSyncPayload(request),
@@ -190,6 +203,9 @@ export class SyncProtocolService {
     if (!verification.valid) {
       return { ok: false, error: fail('validation_failed', 'Signed request signature failed verification.', request.requestId) }
     }
+    if (!this.replayGuard.consumeOnce(`signed:${request.replayId}`, request.expiresAt, now)) {
+      return { ok: false, error: fail('replay_detected', 'Signed request replay detected.', request.requestId) }
+    }
     return { ok: true }
   }
 
@@ -197,7 +213,17 @@ export class SyncProtocolService {
     envelope: EncryptedSyncEnvelope,
     now = new Date(),
     consumeReplay = true,
-  ): { ok: true } | { ok: false; error: SyncProtocolError } {
+  ): Promise<{ ok: true } | { ok: false; error: SyncProtocolError }> {
+    return this.validateEnvelopeAsync(envelope, now, consumeReplay)
+  }
+
+  private async validateEnvelopeAsync(
+    envelope: EncryptedSyncEnvelope,
+    now: Date,
+    consumeReplay: boolean,
+  ): Promise<{ ok: true } | { ok: false; error: SyncProtocolError }> {
+    const ciphertextBytes = base64ToBytes(envelope.encryptedPayload)
+    const computedDigest = await sha256Base64Bytes(ciphertextBytes)
     const metadata: SyncVisibleRoutingMetadata = {
       namespace: envelope.namespace,
       objectId: envelope.objectId,
@@ -207,13 +233,22 @@ export class SyncProtocolService {
       envelopeVersion: envelope.envelopeVersion,
       schemaVersion: envelope.schemaVersion,
       cryptoSuiteVersion: envelope.cryptoSuiteVersion,
-      ciphertextByteLength: utf8ByteLength(envelope.encryptedPayload),
+      ciphertextByteLength: ciphertextBytes.byteLength,
       ciphertextDigest: envelope.ciphertextDigest,
       requestId: envelope.requestId,
       replayId: envelope.replayId,
       createdAt: envelope.createdAt,
       expiresAt: envelope.expiresAt,
       tombstone: envelope.tombstone,
+    }
+    if (envelope.ciphertextDigest !== computedDigest) {
+      return { ok: false, error: fail('validation_failed', 'Ciphertext digest mismatch.', envelope.requestId) }
+    }
+    if (metadata.ciphertextByteLength <= 0 || metadata.ciphertextByteLength > MAX_CIPHERTEXT_BYTES) {
+      return { ok: false, error: fail('payload_too_large', 'Ciphertext exceeds size bounds.', envelope.requestId) }
+    }
+    if (utf8ByteLength(envelope.encryptedMetadata) <= 0) {
+      return { ok: false, error: fail('validation_failed', 'Encrypted metadata binding is missing.', envelope.requestId) }
     }
     return this.validateMetadata(metadata, now, consumeReplay)
   }
