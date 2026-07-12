@@ -199,7 +199,7 @@ export class SyncKeyArchitectureService {
     )
     const key = await crypto.subtle.importKey(
       'raw',
-      rawObjectKey,
+      rawObjectKey.slice(),
       { name: 'AES-GCM', length: 256 },
       false,
       ['encrypt', 'decrypt'],
@@ -249,7 +249,7 @@ export class SyncKeyArchitectureService {
     }
     const key = await crypto.subtle.importKey(
       'raw',
-      rawBytes,
+      rawBytes.slice(),
       { name: 'AES-GCM', length: 256 },
       false,
       ['encrypt', 'decrypt'],
