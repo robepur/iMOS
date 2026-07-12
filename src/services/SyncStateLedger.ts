@@ -6,6 +6,8 @@ import type {
 } from '../types/syncConvergence'
 import { SYNC_CONVERGENCE_SCHEMA_VERSION } from '../types/syncConvergence'
 import type { EncryptedObjectId, ObjectVersion, SyncNamespace } from '../types/sync'
+import type { DeviceIdentifier } from '../types/deviceIdentity'
+import type { SyncKeyHierarchyId } from '../types/syncKeys'
 import { auditConvergenceOutcome, evaluateConvergence } from './SyncConflictEngine'
 
 const MAX_AUDIT_EVENTS = 500
@@ -18,8 +20,8 @@ type MutableEntry = {
   acceptedVersion: ObjectVersion
   acceptedParentVersion?: ObjectVersion
   contentDigest: string
-  signerDeviceId: string
-  hierarchyId: string
+  signerDeviceId: DeviceIdentifier
+  hierarchyId: SyncKeyHierarchyId
   tombstone: boolean
   acceptedAt: string
   lastGoodAt: string
