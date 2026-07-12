@@ -180,3 +180,14 @@ export type {
   SyncConvergenceAuditAction,
   SyncConvergenceAuditEvent,
 } from './syncConvergence'
+
+export type {
+  SyncRecoverySchemaVersion,
+  SyncRecoveryState,
+  SyncRecoveryQuarantineReason,
+  SyncRecoveryCheckpoint,
+  SyncRecoveryTransaction,
+  SyncRecoveryAuditAction,
+  SyncRecoveryAuditEvent,
+  StartupRecoveryResult,
+} from './syncRecovery'
