@@ -194,3 +194,72 @@ export type SyncOperatorControlState = {
   localReferenceEndpoint?: string
   configuredAt?: string
 }
+
+// ---------------------------------------------------------------------------
+// Build 020: conflict resolution types
+// ---------------------------------------------------------------------------
+
+export const SYNC_CONFLICT_PENDING_SCHEMA_VERSION: SyncStateSchemaVersion = '1.0.0'
+
+/**
+ * Per-namespace conflict resolution policy.
+ *
+ * - auto_merge_append: append-only record streams (audit, quarantine) — safe to
+ *   retain both copies; resolution is automatic and non-destructive.
+ * - operator_review: critical records (priorities, decisions, missions, consent,
+ *   cognitive, identity, recovery) — operator must explicitly choose a resolution.
+ * - deny: unknown or unsupported namespace — fail closed; no resolution is
+ *   attempted.
+ */
+export type ConflictResolutionPolicy =
+  | 'auto_merge_append'
+  | 'operator_review'
+  | 'deny'
+
+/**
+ * Result returned by SyncConflictResolver.resolve().
+ */
+export type ConflictResolutionResult =
+  | { kind: 'auto_resolved'; strategy: 'auto_merge_append'; resolvedAt: string }
+  | { kind: 'queued_for_review'; recordId: string; createdAt: string }
+  | { kind: 'denied'; reason: string }
+
+/**
+ * Operator-selected resolution for a conflict that required manual review.
+ */
+export type SyncConflictResolution = 'accepted_local' | 'accepted_remote' | 'discarded'
+
+/**
+ * Persisted record for a conflict that is pending or has been resolved by the
+ * operator.
+ */
+export type SyncConflictPendingRecord = {
+  schemaVersion: SyncStateSchemaVersion
+  id: string
+  namespace: SyncNamespace
+  objectId: EncryptedObjectId
+  conflictReason: SyncConflictResponse['reason']
+  localObjectVersion: ObjectVersion
+  remoteObjectVersion?: ObjectVersion
+  createdAt: string
+  resolvedAt?: string
+  resolution?: SyncConflictResolution
+}
+
+export type SyncConflictAuditAction =
+  | 'conflict_queued_for_review'
+  | 'conflict_auto_resolved'
+  | 'conflict_denied'
+  | 'conflict_accepted_local'
+  | 'conflict_accepted_remote'
+  | 'conflict_discarded'
+
+export type SyncConflictAuditEvent = {
+  id: string
+  action: SyncConflictAuditAction
+  recordId?: string
+  namespace?: SyncNamespace
+  objectId?: EncryptedObjectId
+  reason: string
+  createdAt: string
+}
