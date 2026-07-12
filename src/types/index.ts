@@ -168,3 +168,15 @@ export type {
   SyncDeviceKeyGrant,
   SyncKeyValidationResult,
 } from './syncKeys'
+
+export type {
+  SyncConvergenceSchemaVersion,
+  SyncConvergenceVerdict,
+  ConvergenceReviewReason,
+  ConvergenceQuarantineReason,
+  SyncConvergenceOutcome,
+  RemoteObjectDescriptor,
+  SyncObjectLedgerEntry,
+  SyncConvergenceAuditAction,
+  SyncConvergenceAuditEvent,
+} from './syncConvergence'
