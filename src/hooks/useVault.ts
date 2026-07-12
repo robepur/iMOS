@@ -118,7 +118,14 @@ export type UseVaultReturn = {
   removePresentationOverride: (overrideId: string) => void
   restoreNeutralPresentation: () => void
   saveOrchestrationResult: (data: PersonalData) => void
-}
+  /** Phase 4 Build 024: Save operator onboarding progress. */
+  saveOnboardingState: (state: import('../types/onboarding').OnboardingState) => void
+  /** Phase 4 Build 024: Add a new pilot feedback entry. */
+  addPilotFeedback: (entry: import('../types/pilotFeedback').PilotFeedbackEntry) => void
+  /** Phase 4 Build 024: Update an existing pilot feedback entry. */
+  updatePilotFeedback: (entry: import('../types/pilotFeedback').PilotFeedbackEntry) => void
+  /** Phase 4 Build 024: Delete a pilot feedback entry by id. */
+  deletePilotFeedback: (id: string) => void
 
 function timelineSignature(entry: Omit<TimelineEntry, 'id' | 'createdAt'>): string {
   return `${entry.type}|${entry.title}|${entry.detail}`
@@ -900,6 +907,37 @@ export function useVault(): UseVaultReturn {
     setData(result)
   }, [])
 
+  const saveOnboardingState = useCallback((state: import('../types/onboarding').OnboardingState) => {
+    setData((prev) => {
+      if (!prev) return prev
+      return { ...prev, onboardingState: state }
+    })
+  }, [])
+
+  const addPilotFeedback = useCallback((entry: import('../types/pilotFeedback').PilotFeedbackEntry) => {
+    setData((prev) => {
+      if (!prev) return prev
+      return { ...prev, pilotFeedback: [...(prev.pilotFeedback ?? []), entry] }
+    })
+  }, [])
+
+  const updatePilotFeedback = useCallback((entry: import('../types/pilotFeedback').PilotFeedbackEntry) => {
+    setData((prev) => {
+      if (!prev) return prev
+      return {
+        ...prev,
+        pilotFeedback: (prev.pilotFeedback ?? []).map(e => e.id === entry.id ? entry : e),
+      }
+    })
+  }, [])
+
+  const deletePilotFeedback = useCallback((id: string) => {
+    setData((prev) => {
+      if (!prev) return prev
+      return { ...prev, pilotFeedback: (prev.pilotFeedback ?? []).filter(e => e.id !== id) }
+    })
+  }, [])
+
   return {
     vaultState, data, passphrase, error, saving, setData,
     createVault, unlock, lock, reset,
@@ -927,5 +965,9 @@ export function useVault(): UseVaultReturn {
     removePresentationOverride,
     restoreNeutralPresentation,
     saveOrchestrationResult,
+    saveOnboardingState,
+    addPilotFeedback,
+    updatePilotFeedback,
+    deletePilotFeedback,
   }
 }

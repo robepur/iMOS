@@ -18,6 +18,10 @@ import {
   SYNC_OPERATOR_CONTROL_STATE_SCHEMA_VERSION,
   SYNC_QUARANTINE_RECORD_SCHEMA_VERSION,
 } from './types/sync'
+import type { OnboardingState } from './types/onboarding'
+import { isSafeOnboardingState, createDefaultOnboardingState } from './types/onboarding'
+import type { PilotFeedbackEntry } from './types/pilotFeedback'
+import { isSafePilotFeedbackEntry } from './types/pilotFeedback'
 
 export type RosieRecommendation = {
   id: string
@@ -217,6 +221,10 @@ export type PersonalData = {
   /** Phase 4 Build 019: quarantined remote envelopes. */
   syncQuarantine?: SyncQuarantineRecord[]
   recoveryAudit?: RecoveryAuditEvent[]
+  /** Phase 4 Build 024: operator onboarding progress. */
+  onboardingState?: OnboardingState
+  /** Phase 4 Build 024: private pilot feedback entries. Never transmitted externally. */
+  pilotFeedback?: PilotFeedbackEntry[]
 }
 
 export type UnderstandingState = {
@@ -719,6 +727,12 @@ export function normalizePersonalData(raw: PersonalData): PersonalData {
           ))
           .slice(0, 100)
       : [],
+    onboardingState: isSafeOnboardingState(raw.onboardingState)
+      ? raw.onboardingState
+      : createDefaultOnboardingState(),
+    pilotFeedback: Array.isArray(raw.pilotFeedback)
+      ? raw.pilotFeedback.filter(isSafePilotFeedbackEntry).slice(0, 10_000)
+      : [],
   }
 }
 
@@ -834,6 +848,8 @@ export function createInitialData(): PersonalData {
     syncOperatorControlState: createDefaultSyncOperatorControlState(),
     syncQuarantine: [],
     recoveryAudit: [],
+    onboardingState: createDefaultOnboardingState(),
+    pilotFeedback: [],
   }
 }
 

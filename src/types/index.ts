@@ -204,3 +204,18 @@ export type {
   DecisionValidationResult,
   SyncReviewQueueSummary,
 } from './syncReview'
+
+export type {
+  OnboardingSchemaVersion,
+  OnboardingStepId,
+  OnboardingStatus,
+  OnboardingState,
+} from './onboarding'
+
+export type {
+  PilotFeedbackSchemaVersion,
+  PilotRosieSurface,
+  PilotRating,
+  PilotFeedbackEntry,
+  PilotMeasurements,
+} from './pilotFeedback'
