@@ -158,3 +158,13 @@ export type {
   SyncTransportAuditEvent,
   SyncOperatorControlState,
 } from './sync'
+
+export type {
+  SyncKeyArchitectureVersion,
+  SyncKeyHierarchyId,
+  SyncKeyId,
+  SyncKeyHierarchyDescriptor,
+  WrappedSyncObjectKey,
+  SyncDeviceKeyGrant,
+  SyncKeyValidationResult,
+} from './syncKeys'
