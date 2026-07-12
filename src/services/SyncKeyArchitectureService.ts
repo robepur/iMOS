@@ -204,7 +204,6 @@ export class SyncKeyArchitectureService {
       false,
       ['encrypt', 'decrypt'],
     )
-    rawObjectKey.fill(0)
     return {
       key,
       wrapped: {
@@ -254,7 +253,6 @@ export class SyncKeyArchitectureService {
       false,
       ['encrypt', 'decrypt'],
     )
-    rawBytes.fill(0)
     return key
   }
 
