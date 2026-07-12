@@ -129,6 +129,11 @@ describe('App unlock render regression', () => {
 
     mockVaultState = 'unlocked'
     mockData = createInitialData()
+    mockData.onboardingState = {
+      ...mockData.onboardingState!,
+      status: 'completed',
+      recoveryBackupConfirmed: true,
+    }
     result.rerender(<App />)
 
     expect(screen.getByText('iMOS')).toBeInTheDocument()
