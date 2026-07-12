@@ -136,7 +136,10 @@ describe('App unlock render regression', () => {
     }
     result.rerender(<App />)
 
-    expect(screen.getByText('iMOS')).toBeInTheDocument()
+    expect(screen.getByTestId('app-shell')).toBeInTheDocument()
+    expect(screen.getByTestId('bottom-nav')).toBeInTheDocument()
+    expect(screen.getByTestId('desktop-nav')).toBeInTheDocument()
+    expect(screen.getAllByText('iMOS').length).toBeGreaterThan(0)
     expect(screen.getByText('ENCRYPTED MODE')).toBeInTheDocument()
   })
 })
