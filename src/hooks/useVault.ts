@@ -126,6 +126,7 @@ export type UseVaultReturn = {
   updatePilotFeedback: (entry: import('../types/pilotFeedback').PilotFeedbackEntry) => void
   /** Phase 4 Build 024: Delete a pilot feedback entry by id. */
   deletePilotFeedback: (id: string) => void
+}
 
 function timelineSignature(entry: Omit<TimelineEntry, 'id' | 'createdAt'>): string {
   return `${entry.type}|${entry.title}|${entry.detail}`
