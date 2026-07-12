@@ -453,7 +453,7 @@ describe('Build 021 sync convergence engine', () => {
 
     it('existing build constants are not broken', async () => {
       const { BUILD } = await import('../../src/constants')
-      expect(BUILD).toBe('021')
+      expect(BUILD).toBe('022')
     })
   })
 
