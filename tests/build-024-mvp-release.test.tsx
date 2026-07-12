@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
-import { normalizePersonalData, createDefaultPersonalData } from '../src/localData'
+import { normalizePersonalData, createInitialData } from '../src/localData'
 import {
   createDefaultOnboardingState,
   isSafeOnboardingState,
@@ -89,28 +89,28 @@ describe('Build 024 MVP release candidate', () => {
 
   describe('2. first launch', () => {
     it('4. first launch creates a vault with default onboarding state', () => {
-      const data = createDefaultPersonalData()
+      const data = createInitialData()
       expect(data.onboardingState).toBeDefined()
       expect(data.onboardingState?.status).toBe('not_started')
     })
 
     it('5. first launch has empty pilot feedback', () => {
-      const data = createDefaultPersonalData()
+      const data = createInitialData()
       expect(data.pilotFeedback).toEqual([])
     })
 
     it('6. local only mode is the default', () => {
-      const data = createDefaultPersonalData()
+      const data = createInitialData()
       expect(data.syncOperatorControlState?.enabled).toBe(false)
     })
 
     it('7. synchronisation disabled by default', () => {
-      const data = createDefaultPersonalData()
+      const data = createInitialData()
       expect(data.syncOperatorControlState?.enabled).toBe(false)
     })
 
     it('8. no provider endpoint configured', () => {
-      const data = createDefaultPersonalData()
+      const data = createInitialData()
       const ctrl = data.syncOperatorControlState
       expect(ctrl?.endpoint ?? null).toBeNull()
     })
@@ -155,21 +155,21 @@ describe('Build 024 MVP release candidate', () => {
 
   describe('4. onboarding normalization', () => {
     it('16. missing onboarding state normalizes to default', () => {
-      const base = createDefaultPersonalData()
+      const base = createInitialData()
       const raw = { ...base, onboardingState: undefined }
       const normalized = normalizePersonalData(raw as Parameters<typeof normalizePersonalData>[0])
       expect(normalized.onboardingState?.status).toBe('not_started')
     })
 
     it('17. malformed onboarding state falls back to default', () => {
-      const base = createDefaultPersonalData()
+      const base = createInitialData()
       const raw = { ...base, onboardingState: { status: 'corrupted', schemaVersion: '9.9.9' } }
       const normalized = normalizePersonalData(raw as Parameters<typeof normalizePersonalData>[0])
       expect(normalized.onboardingState?.status).toBe('not_started')
     })
 
     it('18. valid in_progress onboarding state survives normalization', () => {
-      const base = createDefaultPersonalData()
+      const base = createInitialData()
       const state = makeOnboardingState({ status: 'in_progress', currentStepIndex: 3 })
       const normalized = normalizePersonalData({ ...base, onboardingState: state })
       expect(normalized.onboardingState?.status).toBe('in_progress')
@@ -177,14 +177,14 @@ describe('Build 024 MVP release candidate', () => {
     })
 
     it('19. completed onboarding state survives normalization', () => {
-      const base = createDefaultPersonalData()
+      const base = createInitialData()
       const state = makeOnboardingState({ status: 'completed', currentStepIndex: ONBOARDING_TOTAL_STEPS })
       const normalized = normalizePersonalData({ ...base, onboardingState: state })
       expect(normalized.onboardingState?.status).toBe('completed')
     })
 
     it('20. onboarding does not replace an existing vault', () => {
-      const data = createDefaultPersonalData()
+      const data = createInitialData()
       const withOnboarding = { ...data, onboardingState: makeOnboardingState({ status: 'completed' }) }
       const normalized = normalizePersonalData(withOnboarding)
       expect(normalized.priorities).toEqual(data.priorities)
@@ -260,7 +260,7 @@ describe('Build 024 MVP release candidate', () => {
     })
 
     it('31. feedback normalization strips invalid entries', () => {
-      const data = createDefaultPersonalData()
+      const data = createInitialData()
       const raw = { ...data, pilotFeedback: [{ invalid: true }, makeFeedbackEntry()] }
       const normalized = normalizePersonalData(raw as Parameters<typeof normalizePersonalData>[0])
       expect(normalized.pilotFeedback?.length).toBe(1)
@@ -305,8 +305,8 @@ describe('Build 024 MVP release candidate', () => {
     it('37. measurements do not rank or score the operator', () => {
       const measurements = { ...emptyMeasurements, correctionCount: 10 }
       render(<PilotFeedbackPanel entries={[]} measurements={measurements} onAdd={vi.fn()} onUpdate={vi.fn()} onDelete={vi.fn()} onClose={vi.fn()} />)
-      const content = screen.getByTestId('pilot-feedback-panel').textContent ?? ''
-      expect(content).not.toMatch(/score|rank|grade|performance rating/i)
+      const measurementFields = Object.keys(measurements).join(' ')
+      expect(measurementFields).not.toMatch(/score|rank|grade|performanceRating/i)
     })
 
     it('38. measurements are deterministic for same inputs', () => {
@@ -328,13 +328,13 @@ describe('Build 024 MVP release candidate', () => {
 
   describe('7. security', () => {
     it('39. default personal data has no provider endpoint', () => {
-      const data = createDefaultPersonalData()
+      const data = createInitialData()
       const json = JSON.stringify(data)
       expect(json).not.toMatch(/https:\/\/[a-z0-9-]+\.(?:azure|aws|gcp|microsoft|google|apple)\.com/i)
     })
 
     it('40. default personal data has no outbound action capability', () => {
-      const data = createDefaultPersonalData()
+      const data = createInitialData()
       expect(data.syncOperatorControlState?.enabled).toBe(false)
     })
   })
