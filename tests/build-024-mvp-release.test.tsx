@@ -1,22 +1,22 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
-import { normalizePersonalData, createDefaultPersonalData } from '../../src/localData'
+import { normalizePersonalData, createDefaultPersonalData } from '../src/localData'
 import {
   createDefaultOnboardingState,
   isSafeOnboardingState,
   ONBOARDING_SCHEMA_VERSION,
   ONBOARDING_STEPS,
   ONBOARDING_TOTAL_STEPS,
-} from '../../src/types/onboarding'
+} from '../src/types/onboarding'
 import {
   isSafePilotFeedbackEntry,
   PILOT_FEEDBACK_SCHEMA_VERSION,
-} from '../../src/types/pilotFeedback'
-import type { PilotFeedbackEntry } from '../../src/types/pilotFeedback'
-import { APP_VERSION, BUILD } from '../../src/constants'
-import OnboardingFlow from '../../src/features/onboarding/OnboardingFlow'
-import PilotFeedbackPanel from '../../src/features/pilot/PilotFeedbackPanel'
-import type { OnboardingState } from '../../src/types/onboarding'
+} from '../src/types/pilotFeedback'
+import type { PilotFeedbackEntry } from '../src/types/pilotFeedback'
+import { APP_VERSION, BUILD } from '../src/constants'
+import OnboardingFlow from '../src/features/onboarding/OnboardingFlow'
+import PilotFeedbackPanel from '../src/features/pilot/PilotFeedbackPanel'
+import type { OnboardingState } from '../src/types/onboarding'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
