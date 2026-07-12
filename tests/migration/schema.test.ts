@@ -1,5 +1,6 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { migrateToLatest } from '../../src/SchemaVersion'
+import { compatibilityVaults } from '../fixtures/compatibilityVaults'
 
 describe('migrateToLatest', () => {
   it('handles null/undefined input', () => {
@@ -56,5 +57,51 @@ describe('migrateToLatest', () => {
     const result = migrateToLatest(input)
     expect(result.missionPlans).toEqual([])
     expect(result.missionSteps).toEqual([])
+  })
+
+  it('hydrates Build 019 sync defaults as disabled', () => {
+    const result = migrateToLatest(compatibilityVaults['build012'])
+    expect(result.syncOperatorControlState?.schemaVersion).toBe('1.0.0')
+    expect(result.syncOperatorControlState?.enabled).toBe(false)
+    expect(result.syncOperatorControlState?.localEndpointConfigured).toBe(false)
+    expect(result.syncQuarantine).toEqual([])
+  })
+
+  it('fails closed for malformed Build 019 sync persistence state', () => {
+    const result = migrateToLatest({
+      ...compatibilityVaults['build016_adaptive_presentation'],
+      syncOperatorControlState: {
+        schemaVersion: '1.0.0',
+        enabled: true,
+        localEndpointConfigured: true,
+        localReferenceEndpoint: 'http://example.com:8787',
+        configuredAt: 'not-a-timestamp',
+      },
+      syncQuarantine: [{
+        schemaVersion: '1.0.0',
+        id: 'sync-quarantine:secret',
+        reason: 'malformed_response',
+        disposition: 'pending_review',
+        requestId: 'request-1',
+        namespace: 'sync:operator',
+        objectId: 'obj:1',
+        createdAt: '2026-07-11T00:00:00.000Z',
+        detail: 'Authorization: Bearer abcdefghijklmnop',
+      }],
+    } as never)
+    expect(result.syncOperatorControlState?.enabled).toBe(false)
+    expect(result.syncQuarantine).toEqual([])
+  })
+
+  it('migration path performs no network requests', () => {
+    const originalFetch = globalThis.fetch
+    const fetchSpy = vi.fn()
+    globalThis.fetch = fetchSpy as unknown as typeof fetch
+    try {
+      migrateToLatest(compatibilityVaults['build012'])
+      expect(fetchSpy).not.toHaveBeenCalled()
+    } finally {
+      globalThis.fetch = originalFetch
+    }
   })
 })

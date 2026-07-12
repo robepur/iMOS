@@ -304,6 +304,110 @@ describe('Build 017 connectivity policy foundation', () => {
     expect(decision).toMatchObject({ allowed: false, reason: 'local_address_not_allowed' })
   })
 
+  it('local-address exception remains deny-by-default unless explicitly enabled on the request', () => {
+    const registry = new ConnectivityPolicyRegistry()
+    expect(registry.registerAdapter({
+      id: 'adapter:local-test',
+      version: '1.0.0',
+      enabled: true,
+      policyVersion: '1.0.0',
+      registryVersion: '1.0.0',
+    }).ok).toBe(true)
+    expect(registry.registerCapability({
+      id: 'cap:local-test',
+      version: '1.0.0',
+      adapterId: 'adapter:local-test',
+      enabled: true,
+      rules: [{
+        id: 'rule-local',
+        purpose: 'sync_metadata_read',
+        dataClassifications: ['synchronized_encrypted'],
+        origins: [{ protocol: 'http', hostname: '127.0.0.1', port: 8787 }],
+        pathPatterns: [{ kind: 'prefix', pathPrefix: '/sync/v1' }],
+        methods: ['GET'],
+        redirectPolicy: { mode: 'deny' },
+        timeoutPolicy: { defaultMs: 1000, maxMs: 2000 },
+      }],
+    }).ok).toBe(true)
+
+    const denied = evaluateConnectivityPolicy({
+      ...makeRequest({
+        capabilityId: 'cap:local-test',
+        adapterId: 'adapter:local-test',
+        method: 'GET',
+        purpose: 'sync_metadata_read',
+        dataClassification: 'synchronized_encrypted',
+        url: 'http://127.0.0.1:8787/sync/v1/envelopes/a/b',
+      }),
+      allowLocalAddress: false,
+    }, registry.snapshot())
+    const allowed = evaluateConnectivityPolicy({
+      ...makeRequest({
+        capabilityId: 'cap:local-test',
+        adapterId: 'adapter:local-test',
+        method: 'GET',
+        purpose: 'sync_metadata_read',
+        dataClassification: 'synchronized_encrypted',
+        url: 'http://127.0.0.1:8787/sync/v1/envelopes/a/b',
+      }),
+      allowLocalAddress: true,
+    }, registry.snapshot())
+    expect(denied).toMatchObject({ allowed: false, reason: 'local_address_not_allowed' })
+    expect(allowed).toMatchObject({ allowed: true, reason: 'authorized' })
+  })
+
+  it('local-address exception does not allow wrong port or host alias', () => {
+    const registry = new ConnectivityPolicyRegistry()
+    expect(registry.registerAdapter({
+      id: 'adapter:local-port',
+      version: '1.0.0',
+      enabled: true,
+      policyVersion: '1.0.0',
+      registryVersion: '1.0.0',
+    }).ok).toBe(true)
+    expect(registry.registerCapability({
+      id: 'cap:local-port',
+      version: '1.0.0',
+      adapterId: 'adapter:local-port',
+      enabled: true,
+      rules: [{
+        id: 'rule-port',
+        purpose: 'sync_metadata_write',
+        dataClassifications: ['synchronized_encrypted'],
+        origins: [{ protocol: 'http', hostname: '127.0.0.1', port: 8787 }],
+        pathPatterns: [{ kind: 'exact', path: '/sync/v1/envelopes' }],
+        methods: ['POST'],
+        redirectPolicy: { mode: 'deny' },
+        timeoutPolicy: { defaultMs: 1000, maxMs: 2000 },
+      }],
+    }).ok).toBe(true)
+
+    const wrongPort = evaluateConnectivityPolicy({
+      ...makeRequest({
+        capabilityId: 'cap:local-port',
+        adapterId: 'adapter:local-port',
+        method: 'POST',
+        purpose: 'sync_metadata_write',
+        dataClassification: 'synchronized_encrypted',
+        url: 'http://127.0.0.1:9999/sync/v1/envelopes',
+      }),
+      allowLocalAddress: true,
+    }, registry.snapshot())
+    const wrongHost = evaluateConnectivityPolicy({
+      ...makeRequest({
+        capabilityId: 'cap:local-port',
+        adapterId: 'adapter:local-port',
+        method: 'POST',
+        purpose: 'sync_metadata_write',
+        dataClassification: 'synchronized_encrypted',
+        url: 'http://localhost:8787/sync/v1/envelopes',
+      }),
+      allowLocalAddress: true,
+    }, registry.snapshot())
+    expect(wrongPort).toMatchObject({ allowed: false, reason: 'port_not_allowed' })
+    expect(wrongHost).toMatchObject({ allowed: false, reason: 'origin_not_allowed' })
+  })
+
   it('unsafe redirects deny', () => {
     const registry = makeRegistry()
     const decision = evaluateRedirectTarget(makeRequest(), 'https://api.example.com/v1/private', registry.snapshot())

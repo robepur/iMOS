@@ -28,4 +28,24 @@ describe('Network boundary security scan', () => {
     expect(source.includes('exportKey("pkcs8"')).toBe(false)
     expect(source.includes('localStorage')).toBe(false)
   })
+
+  it('Build 019 permits fetch only within the approved sync adapter boundary', () => {
+    const root = path.resolve(__dirname, '../..')
+    const srcDir = path.join(root, 'src')
+    const tsFiles: string[] = []
+    const walk = (dir: string) => {
+      for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+        if (entry.name === 'node_modules' || entry.name === 'dist') continue
+        const full = path.join(dir, entry.name)
+        if (entry.isDirectory()) walk(full)
+        else if (/\.(ts|tsx|js|jsx)$/.test(entry.name)) tsFiles.push(full)
+      }
+    }
+    walk(srcDir)
+    const filesUsingFetch = tsFiles
+      .filter((file) => fs.readFileSync(file, 'utf8').match(/(?:\bfetch\s*\(|\b(?:globalThis|window|self)\s*\.\s*fetch\s*\(|\b(?:globalThis|window|self)\s*\[\s*['"`]fetch['"`]\s*\]\s*\()/))
+      .map((file) => path.relative(root, file).replace(/\\/g, '/'))
+      .sort()
+    expect(filesUsingFetch).toEqual(['src/services/SyncTransportAdapter.ts'])
+  })
 })

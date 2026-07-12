@@ -101,6 +101,8 @@ export type ConnectivityRequestDescriptor = {
   adapterId: AdapterId
   method: AllowedHttpMethod
   url: string
+  /** Build 019 local reference mode: false by default for strict deny-local baseline. */
+  allowLocalAddress?: boolean
   purpose: ConnectivityRequestPurpose
   dataClassification: ConnectivityDataClassification
   timeoutMs?: number

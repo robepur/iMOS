@@ -133,3 +133,28 @@ export type {
   DeviceRegistryValidationResult,
   DeviceTrustRegistrySnapshot,
 } from './deviceIdentity'
+
+export type {
+  SyncNamespace,
+  EncryptedObjectId,
+  ObjectVersion,
+  ProtocolVersion,
+  EnvelopeVersion,
+  SyncSchemaVersion,
+  SyncCryptoSuiteVersion,
+  SyncStateSchemaVersion,
+  SyncQuarantineDisposition,
+  SyncVisibleRoutingMetadata,
+  EncryptedSyncEnvelope,
+  SyncUploadAcknowledgment,
+  SyncConflictResponse,
+  SyncDownloadResult,
+  SyncQuarantineReason,
+  SyncQuarantineRecord,
+  SyncProtocolErrorCode,
+  SyncProtocolError,
+  SignedSyncRequest,
+  SyncTransportAuditAction,
+  SyncTransportAuditEvent,
+  SyncOperatorControlState,
+} from './sync'

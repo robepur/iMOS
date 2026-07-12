@@ -13,6 +13,11 @@ import type {
   PresentationProfile,
 } from './types/presentation'
 import type { RecoveryAuditEvent } from './types/recovery'
+import type { SyncOperatorControlState, SyncQuarantineRecord } from './types/sync'
+import {
+  SYNC_OPERATOR_CONTROL_STATE_SCHEMA_VERSION,
+  SYNC_QUARANTINE_RECORD_SCHEMA_VERSION,
+} from './types/sync'
 
 export type RosieRecommendation = {
   id: string
@@ -207,6 +212,10 @@ export type PersonalData = {
   presentationAdaptationAudit?: PresentationAdaptationAuditEvent[]
   /** Phase 3 Build 016: mapping registry version used for resolved profile. */
   presentationMappingRegistryVersion?: string
+  /** Phase 4 Build 019: operator-controlled local test sync transport state. */
+  syncOperatorControlState?: SyncOperatorControlState
+  /** Phase 4 Build 019: quarantined remote envelopes. */
+  syncQuarantine?: SyncQuarantineRecord[]
   recoveryAudit?: RecoveryAuditEvent[]
 }
 
@@ -217,6 +226,89 @@ export type UnderstandingState = {
 }
 
 const VALID_LEVELS: PriorityLevel[] = ['critical', 'high', 'normal', 'low']
+const MAX_SYNC_ENDPOINT_LENGTH = 256
+const MAX_SYNC_DIAGNOSTIC_DETAIL_LENGTH = 512
+const MAX_SYNC_DIAGNOSTIC_CODE_LENGTH = 64
+const MAX_SYNC_REQUEST_ID_LENGTH = 128
+const MAX_SYNC_RECORD_ID_LENGTH = 128
+
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
+  if (!value || typeof value !== 'object') return false
+  const proto = Object.getPrototypeOf(value)
+  return proto === Object.prototype || proto === null
+}
+
+function hasForbiddenSecurityField(value: unknown): boolean {
+  if (!isPlainRecord(value) && !Array.isArray(value)) return false
+  const blocked = [
+    'decrypted',
+    'payload',
+    'vault',
+    'passphrase',
+    'encryptionkey',
+    'privatekey',
+    'token',
+    'authorization',
+    'cookie',
+    'secret',
+    'credential',
+  ]
+  if (Array.isArray(value)) return value.some((entry) => hasForbiddenSecurityField(entry))
+  for (const [key, entry] of Object.entries(value)) {
+    const normalized = key.toLowerCase().replace(/[^a-z0-9]/g, '')
+    if (blocked.some(fragment => normalized.includes(fragment))) return true
+    if (hasForbiddenSecurityField(entry)) return true
+  }
+  return false
+}
+
+function isIsoTimestamp(value: string): boolean {
+  return typeof value === 'string' && Number.isFinite(Date.parse(value))
+}
+
+function isBoundedString(value: unknown, max: number): value is string {
+  return typeof value === 'string' && value.length > 0 && value.length <= max && !/[\u0000-\u001F\u007F]/.test(value)
+}
+
+function isLocalReferenceEndpoint(value: string): boolean {
+  if (!isBoundedString(value, MAX_SYNC_ENDPOINT_LENGTH) || /\s/.test(value)) return false
+  let parsed: URL
+  try {
+    parsed = new URL(value)
+  } catch {
+    return false
+  }
+  if (parsed.protocol !== 'http:') return false
+  if (parsed.username || parsed.password) return false
+  if (parsed.search || parsed.hash) return false
+  const host = parsed.hostname.toLowerCase()
+  return host === 'localhost' || host === '127.0.0.1' || host === '::1'
+}
+
+const SYNC_QUARANTINE_REASONS: Array<SyncQuarantineRecord['reason']> = [
+  'malformed_response',
+  'unsupported_version',
+  'bad_signature',
+  'digest_mismatch',
+  'authentication_failure',
+  'decryption_failure',
+  'replay',
+  'rollback',
+  'parent_version_mismatch',
+  'schema_mismatch',
+  'namespace_mismatch',
+  'unknown_device',
+  'revoked_or_suspended_signer',
+  'oversized_payload',
+  'invalid_tombstone',
+  'unexpected_content_type',
+]
+
+function looksSensitiveDiagnostic(text: string): boolean {
+  const credentialUrl = /https?:\/\/[^/\s:@]+:[^@\s]+@/i
+  const sensitiveText = /(authorization:|cookie:|bearer\s+[A-Za-z0-9._-]{8,}|private key|passphrase|connector token|vault content|decrypted payload)/i
+  return credentialUrl.test(text) || sensitiveText.test(text)
+}
 
 function isSafeCognitionConsent(value: unknown): value is CognitionConsent {
   if (!value || typeof value !== 'object') return false
@@ -361,6 +453,70 @@ function createDefaultPresentationProfile(): PresentationProfile {
     explanations: [],
     validationState: 'neutral',
   }
+}
+
+export function createDefaultSyncOperatorControlState(): SyncOperatorControlState {
+  return {
+    schemaVersion: SYNC_OPERATOR_CONTROL_STATE_SCHEMA_VERSION,
+    enabled: false,
+    localEndpointConfigured: false,
+  }
+}
+
+function isSafeSyncOperatorControlState(value: unknown): value is SyncOperatorControlState {
+  if (!isPlainRecord(value)) return false
+  if (hasForbiddenSecurityField(value)) return false
+  const keys = Object.keys(value).sort()
+  const allowed = ['configuredAt', 'enabled', 'localEndpointConfigured', 'localReferenceEndpoint', 'schemaVersion']
+  if (keys.some(key => !allowed.includes(key))) return false
+  const state = value as Partial<SyncOperatorControlState>
+  if (state.schemaVersion !== SYNC_OPERATOR_CONTROL_STATE_SCHEMA_VERSION) return false
+  if (typeof state.enabled !== 'boolean' || typeof state.localEndpointConfigured !== 'boolean') return false
+  if (state.configuredAt !== undefined && !isIsoTimestamp(state.configuredAt)) return false
+  if (state.localReferenceEndpoint !== undefined && !isLocalReferenceEndpoint(state.localReferenceEndpoint)) return false
+  if (state.localEndpointConfigured && !state.localReferenceEndpoint) return false
+  if (!state.localEndpointConfigured && (state.localReferenceEndpoint !== undefined || state.configuredAt !== undefined)) return false
+  if (state.enabled && !state.localEndpointConfigured) return false
+  return true
+}
+
+function isSafeSyncQuarantineRecord(value: unknown): value is SyncQuarantineRecord {
+  if (!isPlainRecord(value)) return false
+  if (hasForbiddenSecurityField(value)) return false
+  const keys = Object.keys(value).sort()
+  const allowed = [
+    'ciphertextDigest',
+    'createdAt',
+    'detail',
+    'diagnosticCode',
+    'disposition',
+    'id',
+    'namespace',
+    'objectId',
+    'reason',
+    'requestId',
+    'schemaVersion',
+  ]
+  if (keys.some(key => !allowed.includes(key))) return false
+
+  const record = value as Partial<SyncQuarantineRecord>
+  if (record.schemaVersion !== SYNC_QUARANTINE_RECORD_SCHEMA_VERSION) return false
+  if (!isBoundedString(record.id, MAX_SYNC_RECORD_ID_LENGTH) || !record.id.startsWith('sync-quarantine:')) return false
+  if (!isBoundedString(record.requestId, MAX_SYNC_REQUEST_ID_LENGTH)) return false
+  if (!record.namespace || !/^sync:[a-z0-9][a-z0-9:_-]{0,127}$/i.test(record.namespace)) return false
+  if (!record.objectId || !/^obj:[a-z0-9][a-z0-9:_-]{0,127}$/i.test(record.objectId)) return false
+  if (!record.createdAt || !isIsoTimestamp(record.createdAt)) return false
+  if (!isBoundedString(record.detail, MAX_SYNC_DIAGNOSTIC_DETAIL_LENGTH)) return false
+  if (looksSensitiveDiagnostic(record.detail)) return false
+  if (!record.reason || !SYNC_QUARANTINE_REASONS.includes(record.reason)) return false
+  if (record.disposition !== 'pending_review' && record.disposition !== 'discarded') return false
+  if (record.diagnosticCode !== undefined && (!isBoundedString(record.diagnosticCode, MAX_SYNC_DIAGNOSTIC_CODE_LENGTH) || !/^[a-z0-9._:-]+$/i.test(record.diagnosticCode))) {
+    return false
+  }
+  if (record.ciphertextDigest !== undefined && (!isBoundedString(record.ciphertextDigest, 256) || !/^[A-Za-z0-9+/_=-]+$/.test(record.ciphertextDigest))) {
+    return false
+  }
+  return true
 }
 
 function isSafePresentationOverride(value: unknown): value is PresentationOverride {
@@ -545,6 +701,12 @@ export function normalizePersonalData(raw: PersonalData): PersonalData {
     presentationMappingRegistryVersion: typeof raw.presentationMappingRegistryVersion === 'string'
       ? raw.presentationMappingRegistryVersion
       : undefined,
+    syncOperatorControlState: isSafeSyncOperatorControlState(raw.syncOperatorControlState)
+      ? { ...raw.syncOperatorControlState }
+      : createDefaultSyncOperatorControlState(),
+    syncQuarantine: Array.isArray(raw.syncQuarantine)
+      ? raw.syncQuarantine.filter(isSafeSyncQuarantineRecord).map(record => ({ ...record })).slice(0, 500)
+      : [],
     recoveryAudit: Array.isArray(raw.recoveryAudit)
       ? raw.recoveryAudit
           .filter((event): event is RecoveryAuditEvent => Boolean(
@@ -669,6 +831,8 @@ export function createInitialData(): PersonalData {
     presentationProfile: createDefaultPresentationProfile(),
     presentationOverrides: [],
     presentationAdaptationAudit: [],
+    syncOperatorControlState: createDefaultSyncOperatorControlState(),
+    syncQuarantine: [],
     recoveryAudit: [],
   }
 }
