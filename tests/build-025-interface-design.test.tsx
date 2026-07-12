@@ -53,8 +53,8 @@ function renderShell(
 // ── Build metadata ────────────────────────────────────────────────────────────
 
 describe('Build 025 metadata', () => {
-  it('BUILD constant is 025', () => {
-    expect(BUILD).toBe('025')
+  it('BUILD constant is 026', () => {
+    expect(BUILD).toBe('026')
   })
 
   it('design tokens file exists', () => {

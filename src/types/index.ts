@@ -219,3 +219,18 @@ export type {
   PilotFeedbackEntry,
   PilotMeasurements,
 } from './pilotFeedback'
+
+export type {
+  OperatorPilotSchemaVersion,
+  PilotStatus,
+  PilotCompletionVerdict,
+  PilotConcernType,
+  PilotConcernSeverity,
+  PilotAuditAction,
+  PilotSession,
+  PilotDayRecord,
+  PilotCheckIn,
+  PilotConcern,
+  PilotMeasurementSummary,
+  PilotAuditEvent,
+} from './operatorPilot'

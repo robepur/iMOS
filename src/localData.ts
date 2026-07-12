@@ -22,6 +22,20 @@ import type { OnboardingState } from './types/onboarding'
 import { isSafeOnboardingState, createDefaultOnboardingState } from './types/onboarding'
 import type { PilotFeedbackEntry } from './types/pilotFeedback'
 import { isSafePilotFeedbackEntry } from './types/pilotFeedback'
+import type {
+  PilotAuditEvent,
+  PilotCheckIn,
+  PilotConcern,
+  PilotDayRecord,
+  PilotSession,
+} from './types/operatorPilot'
+import {
+  isSafePilotAuditEvent,
+  isSafePilotCheckIn,
+  isSafePilotConcern,
+  isSafePilotDayRecord,
+  isSafePilotSession,
+} from './types/operatorPilot'
 
 export type RosieRecommendation = {
   id: string
@@ -225,6 +239,16 @@ export type PersonalData = {
   onboardingState?: OnboardingState
   /** Phase 4 Build 024: private pilot feedback entries. Never transmitted externally. */
   pilotFeedback?: PilotFeedbackEntry[]
+  /** Phase 4 Build 026: operator pilot session lifecycle. */
+  operatorPilotSession?: PilotSession
+  /** Phase 4 Build 026: operator pilot daily records. */
+  operatorPilotDayRecords?: PilotDayRecord[]
+  /** Phase 4 Build 026: operator pilot check ins. */
+  operatorPilotCheckIns?: PilotCheckIn[]
+  /** Phase 4 Build 026: operator pilot concern records. */
+  operatorPilotConcerns?: PilotConcern[]
+  /** Phase 4 Build 026: operator pilot audit events. */
+  operatorPilotAudit?: PilotAuditEvent[]
 }
 
 export type UnderstandingState = {
@@ -733,6 +757,19 @@ export function normalizePersonalData(raw: PersonalData): PersonalData {
     pilotFeedback: Array.isArray(raw.pilotFeedback)
       ? raw.pilotFeedback.filter(isSafePilotFeedbackEntry).slice(0, 10_000)
       : [],
+    operatorPilotSession: isSafePilotSession(raw.operatorPilotSession) ? raw.operatorPilotSession : undefined,
+    operatorPilotDayRecords: Array.isArray(raw.operatorPilotDayRecords)
+      ? raw.operatorPilotDayRecords.filter(isSafePilotDayRecord).slice(0, 10_000)
+      : [],
+    operatorPilotCheckIns: Array.isArray(raw.operatorPilotCheckIns)
+      ? raw.operatorPilotCheckIns.filter(isSafePilotCheckIn).slice(0, 10_000)
+      : [],
+    operatorPilotConcerns: Array.isArray(raw.operatorPilotConcerns)
+      ? raw.operatorPilotConcerns.filter(isSafePilotConcern).slice(0, 10_000)
+      : [],
+    operatorPilotAudit: Array.isArray(raw.operatorPilotAudit)
+      ? raw.operatorPilotAudit.filter(isSafePilotAuditEvent).slice(0, 10_000)
+      : [],
   }
 }
 
@@ -850,6 +887,11 @@ export function createInitialData(): PersonalData {
     recoveryAudit: [],
     onboardingState: createDefaultOnboardingState(),
     pilotFeedback: [],
+    operatorPilotSession: undefined,
+    operatorPilotDayRecords: [],
+    operatorPilotCheckIns: [],
+    operatorPilotConcerns: [],
+    operatorPilotAudit: [],
   }
 }
 

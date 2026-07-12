@@ -614,7 +614,7 @@ describe('Build 023 MVP operator validation', () => {
 
     it('43. production build: BUILD constant is 024', async () => {
       const { BUILD } = await import('../../src/constants')
-      expect(BUILD).toBe('025')
+      expect(BUILD).toBe('026')
     })
 
     it('44. full MVP workflow: conflict detected, queued, decision executed, audit recorded', async () => {
