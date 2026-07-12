@@ -13,10 +13,11 @@ import type {
   PresentationProfile,
 } from './types/presentation'
 import type { RecoveryAuditEvent } from './types/recovery'
-import type { SyncOperatorControlState, SyncQuarantineRecord } from './types/sync'
+import type { SyncOperatorControlState, SyncQuarantineRecord, SyncConflictPendingRecord } from './types/sync'
 import {
   SYNC_OPERATOR_CONTROL_STATE_SCHEMA_VERSION,
   SYNC_QUARANTINE_RECORD_SCHEMA_VERSION,
+  SYNC_CONFLICT_PENDING_SCHEMA_VERSION,
 } from './types/sync'
 
 export type RosieRecommendation = {
@@ -216,6 +217,8 @@ export type PersonalData = {
   syncOperatorControlState?: SyncOperatorControlState
   /** Phase 4 Build 019: quarantined remote envelopes. */
   syncQuarantine?: SyncQuarantineRecord[]
+  /** Phase 4 Build 020: conflict records pending operator review. */
+  syncPendingConflicts?: SyncConflictPendingRecord[]
   recoveryAudit?: RecoveryAuditEvent[]
 }
 
@@ -231,6 +234,20 @@ const MAX_SYNC_DIAGNOSTIC_DETAIL_LENGTH = 512
 const MAX_SYNC_DIAGNOSTIC_CODE_LENGTH = 64
 const MAX_SYNC_REQUEST_ID_LENGTH = 128
 const MAX_SYNC_RECORD_ID_LENGTH = 128
+const MAX_SYNC_CONFLICT_RECORD_ID_LENGTH = 128
+const MAX_SYNC_CONFLICT_VERSION_LENGTH = 32
+
+const SYNC_CONFLICT_REASONS = [
+  'parent_version_mismatch',
+  'stale_version',
+  'tombstone_conflict',
+] as const
+
+const SYNC_CONFLICT_RESOLUTIONS = [
+  'accepted_local',
+  'accepted_remote',
+  'discarded',
+] as const
 
 function isPlainRecord(value: unknown): value is Record<string, unknown> {
   if (!value || typeof value !== 'object') return false
@@ -519,6 +536,29 @@ function isSafeSyncQuarantineRecord(value: unknown): value is SyncQuarantineReco
   return true
 }
 
+function isSafeSyncConflictPendingRecord(value: unknown): value is SyncConflictPendingRecord {
+  if (!isPlainRecord(value)) return false
+  if (hasForbiddenSecurityField(value)) return false
+  const record = value as Partial<SyncConflictPendingRecord>
+  if (record.schemaVersion !== SYNC_CONFLICT_PENDING_SCHEMA_VERSION) return false
+  if (!isBoundedString(record.id, MAX_SYNC_CONFLICT_RECORD_ID_LENGTH) || !record.id.startsWith('sync-conflict:')) return false
+  if (!record.namespace || !/^sync:[a-z0-9][a-z0-9:_-]{0,127}$/i.test(record.namespace)) return false
+  if (!record.objectId || !/^obj:[a-z0-9][a-z0-9:_-]{0,127}$/i.test(record.objectId)) return false
+  if (!SYNC_CONFLICT_REASONS.includes(record.conflictReason as typeof SYNC_CONFLICT_REASONS[number])) return false
+  if (!isBoundedString(record.localObjectVersion, MAX_SYNC_CONFLICT_VERSION_LENGTH) || !/^\d+$/.test(record.localObjectVersion)) return false
+  if (record.remoteObjectVersion !== undefined) {
+    if (!isBoundedString(record.remoteObjectVersion, MAX_SYNC_CONFLICT_VERSION_LENGTH) || !/^\d+$/.test(record.remoteObjectVersion)) return false
+  }
+  if (!record.createdAt || !isIsoTimestamp(record.createdAt)) return false
+  if (record.resolvedAt !== undefined && !isIsoTimestamp(record.resolvedAt)) return false
+  if (record.resolution !== undefined && !SYNC_CONFLICT_RESOLUTIONS.includes(record.resolution as typeof SYNC_CONFLICT_RESOLUTIONS[number])) return false
+  // Resolved records must have both resolvedAt and resolution, or neither.
+  const hasResolution = record.resolution !== undefined
+  const hasResolvedAt = record.resolvedAt !== undefined
+  if (hasResolution !== hasResolvedAt) return false
+  return true
+}
+
 function isSafePresentationOverride(value: unknown): value is PresentationOverride {
   if (!value || typeof value !== 'object') return false
   const override = value as Partial<PresentationOverride>
@@ -707,6 +747,9 @@ export function normalizePersonalData(raw: PersonalData): PersonalData {
     syncQuarantine: Array.isArray(raw.syncQuarantine)
       ? raw.syncQuarantine.filter(isSafeSyncQuarantineRecord).map(record => ({ ...record })).slice(0, 500)
       : [],
+    syncPendingConflicts: Array.isArray(raw.syncPendingConflicts)
+      ? raw.syncPendingConflicts.filter(isSafeSyncConflictPendingRecord).map(record => ({ ...record })).slice(0, 200)
+      : [],
     recoveryAudit: Array.isArray(raw.recoveryAudit)
       ? raw.recoveryAudit
           .filter((event): event is RecoveryAuditEvent => Boolean(
@@ -833,6 +876,7 @@ export function createInitialData(): PersonalData {
     presentationAdaptationAudit: [],
     syncOperatorControlState: createDefaultSyncOperatorControlState(),
     syncQuarantine: [],
+    syncPendingConflicts: [],
     recoveryAudit: [],
   }
 }
