@@ -520,8 +520,8 @@ function isSafeSyncQuarantineRecord(value: unknown): value is SyncQuarantineReco
   if (record.schemaVersion !== SYNC_QUARANTINE_RECORD_SCHEMA_VERSION) return false
   if (!isBoundedString(record.id, MAX_SYNC_RECORD_ID_LENGTH) || !record.id.startsWith('sync-quarantine:')) return false
   if (!isBoundedString(record.requestId, MAX_SYNC_REQUEST_ID_LENGTH)) return false
-  if (!record.namespace || !/^sync:[a-z0-9][a-z0-9:_-]{0,127}$/i.test(record.namespace)) return false
-  if (!record.objectId || !/^obj:[a-z0-9][a-z0-9:_-]{0,127}$/i.test(record.objectId)) return false
+  if (!record.namespace || !/^sync:[a-z0-9][a-z0-9:_-]{0,127}$/.test(record.namespace)) return false
+  if (!record.objectId || !/^obj:[a-z0-9][a-z0-9:_-]{0,127}$/.test(record.objectId)) return false
   if (!record.createdAt || !isIsoTimestamp(record.createdAt)) return false
   if (!isBoundedString(record.detail, MAX_SYNC_DIAGNOSTIC_DETAIL_LENGTH)) return false
   if (looksSensitiveDiagnostic(record.detail)) return false
@@ -542,8 +542,8 @@ function isSafeSyncConflictPendingRecord(value: unknown): value is SyncConflictP
   const record = value as Partial<SyncConflictPendingRecord>
   if (record.schemaVersion !== SYNC_CONFLICT_PENDING_SCHEMA_VERSION) return false
   if (!isBoundedString(record.id, MAX_SYNC_CONFLICT_RECORD_ID_LENGTH) || !record.id.startsWith('sync-conflict:')) return false
-  if (!record.namespace || !/^sync:[a-z0-9][a-z0-9:_-]{0,127}$/i.test(record.namespace)) return false
-  if (!record.objectId || !/^obj:[a-z0-9][a-z0-9:_-]{0,127}$/i.test(record.objectId)) return false
+  if (!record.namespace || !/^sync:[a-z0-9][a-z0-9:_-]{0,127}$/.test(record.namespace)) return false
+  if (!record.objectId || !/^obj:[a-z0-9][a-z0-9:_-]{0,127}$/.test(record.objectId)) return false
   if (!SYNC_CONFLICT_REASONS.includes(record.conflictReason as typeof SYNC_CONFLICT_REASONS[number])) return false
   if (!isBoundedString(record.localObjectVersion, MAX_SYNC_CONFLICT_VERSION_LENGTH) || !/^\d+$/.test(record.localObjectVersion)) return false
   if (record.remoteObjectVersion !== undefined) {

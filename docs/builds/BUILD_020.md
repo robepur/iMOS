@@ -102,6 +102,8 @@ Every resolver action generates a `SyncConflictAuditEvent`:
 
 The in-memory audit trail is bounded to 500 entries.
 
+> **Limitation — transient audit trail**: The in-memory audit trail is not persisted and does not survive application reload. Resolution decisions (accepted_local, accepted_remote, discarded) are recorded in the persisted `syncPendingConflicts` field alongside `resolvedAt` timestamps, which provides a durable record of durable conflict state transitions. The in-memory trail covers the current session only. Durable audit history for conflict decisions is deferred to a future build that adds encrypted persistence for resolution records.
+
 ## Key recovery policy gate
 
 Per the Phase 4 decision register (Build 020 gate), the key recovery policy depth was deferred. The decision outcome for Build 020 is:
@@ -114,6 +116,10 @@ Rationale:
 - Recovery depth will be re-evaluated at the Build 026 consolidation gate when cloud infrastructure is available.
 
 This decision unblocks Build 021 without introducing new recovery infrastructure.
+
+> **Scope clarification**: Build 020 does not implement new recovery operations. "Recovery" in the Build 020 gate refers to resolving the policy decision about sync key recovery depth, not adding new recovery code. The concrete recovery deliverable is the policy decision itself and the documentation that operator recovery uses the Build 004 path.
+
+> **Sync encryption key limitation**: The sync encryption key (AES-GCM data key used by `SyncEnvelopeService`) is generated per-session and is not extractable. It is not persisted in the vault and therefore is **not included in backups created via the Build 004 infrastructure**. After a vault restore, the device generates new sync keys for future uploads. Previously uploaded remote objects encrypted with the old key remain on the sync endpoint but require the original device key to decrypt. The operator recovery path for this case is: (1) the original device retains the ability to re-upload records after restore, or (2) escrow-assisted key recovery (deferred to Build 026). This limitation is intentional for Build 020 and does not affect the vault backup which covers all locally persisted `PersonalData` including `syncPendingConflicts`, `syncQuarantine`, and `syncOperatorControlState`.
 
 ## Build 020 boundaries
 
@@ -144,6 +150,8 @@ This decision unblocks Build 021 without introducing new recovery infrastructure
 - auto_merge_append policy for all append-only namespaces
 - operator_review policy for all critical namespaces
 - deny behavior for unknown namespaces
+- prefix confusion rejection: hyphen-separated namespace variants (sync:audit-evil, sync:quarantine-bypass) correctly denied
+- colon-separated sub-path inheritance confirmed for both policy classes
 - tombstone escalation from auto_merge_append to operator_review
 - full resolution lifecycle (acceptLocal, acceptRemote, discard)
 - double-resolution rejection (idempotent guard)
@@ -160,6 +168,10 @@ This decision unblocks Build 021 without introducing new recovery infrastructure
 - migration: normalizePersonalData defaults to empty when field is absent
 - migration: normalizePersonalData rejects records with mismatched resolvedAt/resolution
 - migration: normalizePersonalData rejects records with forbidden security fields
+- migration: normalizePersonalData rejects uppercase namespaces (case-sensitive)
+- migration: normalizePersonalData rejects excessively long namespaces
+- migration: normalizePersonalData rejects namespaces with control characters
+- migration: normalizePersonalData rejects namespaces with encoded separators
 - Build 019 persistence fields remain unchanged
 - listPending hides resolved records while listAll returns all
 - factory creates independent instances
@@ -169,10 +181,12 @@ This decision unblocks Build 021 without introducing new recovery infrastructure
 - [x] per-namespace conflict resolution policies with explicit deny-by-default
 - [x] tombstone conflicts always escalate to operator review
 - [x] conflict resolution lifecycle (queue, accept, discard) with idempotency guard
-- [x] in-memory audit trail for all resolution actions
+- [x] in-memory audit trail for all resolution actions (transient — session scope only)
 - [x] additive persistence field with validation and secret exclusion
 - [x] migration compatibility preserved for Builds 003–019
 - [x] no network primitives introduced
 - [x] security boundary check passes
-- [x] key recovery policy gate resolved (operator-only, Build 004 infrastructure)
-- [x] test suite: 42 tests, all passing
+- [x] key recovery policy gate resolved (operator-only, Build 004 infrastructure; sync key limitation documented)
+- [x] namespace prefix confusion rejected: hyphen-separated variants of known namespaces deny correctly
+- [x] namespace validation is case-sensitive (matches TypeScript SyncNamespace type)
+- [x] test suite: 51 tests, all passing

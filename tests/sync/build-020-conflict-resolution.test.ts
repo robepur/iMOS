@@ -146,6 +146,59 @@ describe('Build 020 conflict resolution', () => {
       })
       expect(resolver.listAll()).toHaveLength(0)
     })
+
+    // Prefix confusion: hyphen-separated variants of known namespaces must be denied
+    it('denies sync:audit-evil (hyphen sibling of auto_merge_append namespace)', () => {
+      const resolver = createSyncConflictResolver()
+      const result = resolver.resolve({
+        conflict: makeConflict({ namespace: 'sync:audit-evil' as `sync:${string}` }),
+        localObjectVersion: '1',
+        now: NOW,
+      })
+      expect(result.kind).toBe('denied')
+      expect(resolver.listPending()).toHaveLength(0)
+    })
+
+    it('denies sync:quarantine-bypass (hyphen sibling of auto_merge_append namespace)', () => {
+      const resolver = createSyncConflictResolver()
+      const result = resolver.resolve({
+        conflict: makeConflict({ namespace: 'sync:quarantine-bypass' as `sync:${string}` }),
+        localObjectVersion: '1',
+        now: NOW,
+      })
+      expect(result.kind).toBe('denied')
+      expect(resolver.listPending()).toHaveLength(0)
+    })
+
+    it('denies sync:priority-high (hyphen sibling of operator_review namespace)', () => {
+      const resolver = createSyncConflictResolver()
+      const result = resolver.resolve({
+        conflict: makeConflict({ namespace: 'sync:priority-high' as `sync:${string}` }),
+        localObjectVersion: '1',
+        now: NOW,
+      })
+      expect(result.kind).toBe('denied')
+    })
+
+    it('allows colon-separated sub-paths of auto_merge_append namespaces', () => {
+      const resolver = createSyncConflictResolver()
+      const result = resolver.resolve({
+        conflict: makeConflict({ namespace: 'sync:audit:transport' as `sync:${string}` }),
+        localObjectVersion: '1',
+        now: NOW,
+      })
+      expect(result.kind).toBe('auto_resolved')
+    })
+
+    it('allows colon-separated sub-paths of operator_review namespaces', () => {
+      const resolver = createSyncConflictResolver()
+      const result = resolver.resolve({
+        conflict: makeConflict({ namespace: 'sync:identity:device' as `sync:${string}` }),
+        localObjectVersion: '1',
+        now: NOW,
+      })
+      expect(result.kind).toBe('queued_for_review')
+    })
   })
 
   describe('tombstone conflict escalation', () => {
@@ -457,6 +510,75 @@ describe('Build 020 conflict resolution', () => {
       const normalized = normalizePersonalData({ ...initial, syncPendingConflicts: [] })
       expect(normalized.syncOperatorControlState?.enabled).toBe(false)
       expect(normalized.syncQuarantine).toEqual([])
+      expect(normalized.syncPendingConflicts).toEqual([])
+    })
+
+    it('normalizePersonalData rejects records with uppercase namespace (case-sensitive validation)', () => {
+      const initial = createInitialData()
+      const normalized = normalizePersonalData({
+        ...initial,
+        syncPendingConflicts: [{
+          schemaVersion: SYNC_CONFLICT_PENDING_SCHEMA_VERSION,
+          id: 'sync-conflict:bad-e',
+          namespace: 'SYNC:DECISION',
+          objectId: 'obj:d-3',
+          conflictReason: 'stale_version',
+          localObjectVersion: '1',
+          createdAt: NOW.toISOString(),
+        }] as unknown as SyncConflictPendingRecord[],
+      })
+      expect(normalized.syncPendingConflicts).toEqual([])
+    })
+
+    it('normalizePersonalData rejects records with excessively long namespace', () => {
+      const initial = createInitialData()
+      const longNs = `sync:${'a'.repeat(200)}`
+      const normalized = normalizePersonalData({
+        ...initial,
+        syncPendingConflicts: [{
+          schemaVersion: SYNC_CONFLICT_PENDING_SCHEMA_VERSION,
+          id: 'sync-conflict:bad-f',
+          namespace: longNs,
+          objectId: 'obj:d-4',
+          conflictReason: 'stale_version',
+          localObjectVersion: '1',
+          createdAt: NOW.toISOString(),
+        }] as unknown as SyncConflictPendingRecord[],
+      })
+      expect(normalized.syncPendingConflicts).toEqual([])
+    })
+
+    it('normalizePersonalData rejects records with control characters in namespace', () => {
+      const initial = createInitialData()
+      const normalized = normalizePersonalData({
+        ...initial,
+        syncPendingConflicts: [{
+          schemaVersion: SYNC_CONFLICT_PENDING_SCHEMA_VERSION,
+          id: 'sync-conflict:bad-g',
+          namespace: 'sync:audit\x00evil',
+          objectId: 'obj:d-5',
+          conflictReason: 'stale_version',
+          localObjectVersion: '1',
+          createdAt: NOW.toISOString(),
+        }] as unknown as SyncConflictPendingRecord[],
+      })
+      expect(normalized.syncPendingConflicts).toEqual([])
+    })
+
+    it('normalizePersonalData rejects records with encoded separators in namespace', () => {
+      const initial = createInitialData()
+      const normalized = normalizePersonalData({
+        ...initial,
+        syncPendingConflicts: [{
+          schemaVersion: SYNC_CONFLICT_PENDING_SCHEMA_VERSION,
+          id: 'sync-conflict:bad-h',
+          namespace: 'sync:audit%3Aevil',
+          objectId: 'obj:d-6',
+          conflictReason: 'stale_version',
+          localObjectVersion: '1',
+          createdAt: NOW.toISOString(),
+        }] as unknown as SyncConflictPendingRecord[],
+      })
       expect(normalized.syncPendingConflicts).toEqual([])
     })
   })

@@ -39,7 +39,10 @@ const NAMESPACE_POLICIES: ReadonlyArray<{ prefix: string; policy: ConflictResolu
 
 function resolvePolicy(namespace: string): ConflictResolutionPolicy {
   for (const entry of NAMESPACE_POLICIES) {
-    if (namespace === entry.prefix || namespace.startsWith(entry.prefix + ':') || namespace.startsWith(entry.prefix + '-')) {
+    // Only exact match or colon-separated child paths are valid policy descendants.
+    // Hyphen-separated variants (e.g. sync:audit-evil) are NOT children of sync:audit
+    // and must reach the default deny branch to avoid prefix confusion.
+    if (namespace === entry.prefix || namespace.startsWith(entry.prefix + ':')) {
       return entry.policy
     }
   }
