@@ -126,6 +126,18 @@ export type UseVaultReturn = {
   updatePilotFeedback: (entry: import('../types/pilotFeedback').PilotFeedbackEntry) => void
   /** Phase 4 Build 024: Delete a pilot feedback entry by id. */
   deletePilotFeedback: (id: string) => void
+  /** Phase 4 Build 026: Save operator pilot session lifecycle. */
+  saveOperatorPilotSession: (session: import('../types/operatorPilot').PilotSession | undefined) => void
+  /** Phase 4 Build 026: Save operator pilot day records. */
+  saveOperatorPilotDayRecords: (records: import('../types/operatorPilot').PilotDayRecord[]) => void
+  /** Phase 4 Build 026: Save operator pilot check ins. */
+  saveOperatorPilotCheckIns: (checkIns: import('../types/operatorPilot').PilotCheckIn[]) => void
+  /** Phase 4 Build 026: Save operator pilot concerns. */
+  saveOperatorPilotConcerns: (concerns: import('../types/operatorPilot').PilotConcern[]) => void
+  /** Phase 4 Build 026: Save operator pilot audit events. */
+  saveOperatorPilotAudit: (audit: import('../types/operatorPilot').PilotAuditEvent[]) => void
+  /** Phase 4 Build 026: Delete pilot measurements while preserving operational records. */
+  deleteOperatorPilotMeasurements: () => void
 }
 
 function timelineSignature(entry: Omit<TimelineEntry, 'id' | 'createdAt'>): string {
@@ -939,6 +951,54 @@ export function useVault(): UseVaultReturn {
     })
   }, [])
 
+  const saveOperatorPilotSession = useCallback((session: import('../types/operatorPilot').PilotSession | undefined) => {
+    setData((prev) => {
+      if (!prev) return prev
+      return { ...prev, operatorPilotSession: session }
+    })
+  }, [])
+
+  const saveOperatorPilotDayRecords = useCallback((records: import('../types/operatorPilot').PilotDayRecord[]) => {
+    setData((prev) => {
+      if (!prev) return prev
+      return { ...prev, operatorPilotDayRecords: records }
+    })
+  }, [])
+
+  const saveOperatorPilotCheckIns = useCallback((checkIns: import('../types/operatorPilot').PilotCheckIn[]) => {
+    setData((prev) => {
+      if (!prev) return prev
+      return { ...prev, operatorPilotCheckIns: checkIns }
+    })
+  }, [])
+
+  const saveOperatorPilotConcerns = useCallback((concerns: import('../types/operatorPilot').PilotConcern[]) => {
+    setData((prev) => {
+      if (!prev) return prev
+      return { ...prev, operatorPilotConcerns: concerns }
+    })
+  }, [])
+
+  const saveOperatorPilotAudit = useCallback((audit: import('../types/operatorPilot').PilotAuditEvent[]) => {
+    setData((prev) => {
+      if (!prev) return prev
+      return { ...prev, operatorPilotAudit: audit }
+    })
+  }, [])
+
+  const deleteOperatorPilotMeasurements = useCallback(() => {
+    setData((prev) => {
+      if (!prev) return prev
+      return {
+        ...prev,
+        pilotFeedback: [],
+        operatorPilotDayRecords: [],
+        operatorPilotCheckIns: [],
+        operatorPilotConcerns: [],
+      }
+    })
+  }, [])
+
   return {
     vaultState, data, passphrase, error, saving, setData,
     createVault, unlock, lock, reset,
@@ -970,5 +1030,11 @@ export function useVault(): UseVaultReturn {
     addPilotFeedback,
     updatePilotFeedback,
     deletePilotFeedback,
+    saveOperatorPilotSession,
+    saveOperatorPilotDayRecords,
+    saveOperatorPilotCheckIns,
+    saveOperatorPilotConcerns,
+    saveOperatorPilotAudit,
+    deleteOperatorPilotMeasurements,
   }
 }

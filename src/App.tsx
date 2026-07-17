@@ -25,6 +25,7 @@ import PriorityConsole from './features/priorities/PriorityConsole'
 import OnboardingFlow, { OnboardingReview } from './features/onboarding/OnboardingFlow'
 import { ONBOARDING_SCHEMA_VERSION } from './types/onboarding'
 import type { PilotMeasurements } from './types/pilotFeedback'
+import type { PilotAuditEvent, PilotCheckIn, PilotConcern, PilotDayRecord, PilotSession } from './types/operatorPilot'
 
 const ReviewCenter = lazy(() => import('./features/review/ReviewCenter'))
 const RecoveryConsole = lazy(() => import('./features/recovery/RecoveryConsole'))
@@ -34,6 +35,7 @@ const KnowledgeGraphViewer = lazy(() => import('./features/knowledge/KnowledgeGr
 const MissionPlanner = lazy(() => import('./features/missions/MissionPlanner'))
 const RosieCenter = lazy(() => import('./features/rosie/RosieCenter'))
 const PilotFeedbackPanel = lazy(() => import('./features/pilot/PilotFeedbackPanel'))
+const OperatorPilotDashboard = lazy(() => import('./features/pilot/OperatorPilotDashboard'))
 
 type Mode = 'arrival' | 'brief' | 'focus' | 'reflection'
 
@@ -56,6 +58,7 @@ export default function App() {
   const [showMissions, setShowMissions] = useState(false)
   const [showRosieCenter, setShowRosieCenter] = useState(false)
   const [showPilotFeedback, setShowPilotFeedback] = useState(false)
+  const [showOperatorPilot, setShowOperatorPilot] = useState(false)
   const [showOnboardingReview, setShowOnboardingReview] = useState(false)
   const [showTimeline, setShowTimeline] = useState(false)
   const [showPriorities, setShowPriorities] = useState(false)
@@ -159,6 +162,11 @@ export default function App() {
 
   // Pilot measurements (computed, private, never transmitted)
   const pilotFeedback = data.pilotFeedback ?? []
+  const operatorPilotSession: PilotSession | undefined = data.operatorPilotSession
+  const operatorPilotDayRecords: PilotDayRecord[] = data.operatorPilotDayRecords ?? []
+  const operatorPilotCheckIns: PilotCheckIn[] = data.operatorPilotCheckIns ?? []
+  const operatorPilotConcerns: PilotConcern[] = data.operatorPilotConcerns ?? []
+  const operatorPilotAudit: PilotAuditEvent[] = data.operatorPilotAudit ?? []
   const briefingFeedback = pilotFeedback.filter(e => e.rosieSurface === 'daily_briefing' || e.rosieSurface === 'morning_brief')
   const recFeedback = pilotFeedback.filter(e => e.rosieSurface === 'recommendation')
   const pilotMeasurements: PilotMeasurements = {
@@ -215,6 +223,7 @@ export default function App() {
     { id: 'reflections',label: 'REFLECTIONS', icon: FileText,      onClick: () => setShowReflections(true) },
     { id: 'timeline',   label: 'TIMELINE',    icon: Clock3,        onClick: () => setShowTimeline(v => !v) },
     { id: 'feedback',   label: 'FEEDBACK',    icon: MessageSquare, onClick: () => setShowPilotFeedback(true) },
+    { id: 'pilot',      label: 'PILOT',       icon: Database,      onClick: () => setShowOperatorPilot(true) },
     { id: 'missions',   label: 'MISSIONS',    icon: Route,         onClick: () => setShowMissions(true) },
   ]
 
@@ -297,6 +306,23 @@ export default function App() {
               onUpdate={vault.updatePilotFeedback}
               onDelete={vault.deletePilotFeedback}
               onClose={() => setShowPilotFeedback(false)}
+            />
+          )}
+          {showOperatorPilot && (
+            <OperatorPilotDashboard
+              session={operatorPilotSession}
+              dayRecords={operatorPilotDayRecords}
+              checkIns={operatorPilotCheckIns}
+              concerns={operatorPilotConcerns}
+              audit={operatorPilotAudit}
+              backupReady={onboarding.recoveryBackupConfirmed}
+              onSession={vault.saveOperatorPilotSession}
+              onDayRecords={vault.saveOperatorPilotDayRecords}
+              onCheckIns={vault.saveOperatorPilotCheckIns}
+              onConcerns={vault.saveOperatorPilotConcerns}
+              onAudit={vault.saveOperatorPilotAudit}
+              onDeleteMeasurements={vault.deleteOperatorPilotMeasurements}
+              onClose={() => setShowOperatorPilot(false)}
             />
           )}
           {showOnboardingReview && <OnboardingReview onClose={() => setShowOnboardingReview(false)} />}
