@@ -1,14 +1,161 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data:; connect-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'self'; form-action 'none'; frame-ancestors 'none'">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#03203e" />
-    <title>iMOS</title>
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
-  </body>
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'none'; object-src 'none'; base-uri 'self'; form-action 'none'; frame-ancestors 'none'">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#03203e">
+  <title>22Vets Sales Rep Commission Calculator</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="command-bg"></div>
+  <div class="app-shell">
+    <header class="glass header">
+      <div class="header-brand">
+        <img class="logo" src="logo.png" alt="22Vets Technologies logo">
+        <div>
+          <h1>22Vets Sales Rep Commission Calculator</h1>
+          <p class="subtitle">ARGUS Tactical Executive Financial Planning Console</p>
+        </div>
+      </div>
+      <div class="header-actions">
+        <button id="exportCsvBtn" class="btn gold">Export to Excel</button>
+        <button id="printBtn" class="btn">Print PDF</button>
+        <button id="resetBtn" class="btn danger">Reset Calculator</button>
+      </div>
+    </header>
+
+    <section class="kpi-row">
+      <article class="glass kpi-card">
+        <h2>Annual Revenue</h2>
+        <p id="kpiRevenue" class="kpi-value">-</p>
+      </article>
+      <article class="glass kpi-card">
+        <h2>Gross Profit</h2>
+        <p id="kpiGrossProfit" class="kpi-value">-</p>
+      </article>
+      <article class="glass kpi-card">
+        <h2>Adjusted Gross Profit</h2>
+        <p id="kpiAdjustedGrossProfit" class="kpi-value">-</p>
+      </article>
+      <article class="glass kpi-card">
+        <h2>Annual OTE</h2>
+        <p id="kpiOte" class="kpi-value">-</p>
+      </article>
+      <article class="glass kpi-card">
+        <h2>Company Retained Gross Profit</h2>
+        <p id="kpiRetained" class="kpi-value">-</p>
+      </article>
+    </section>
+
+    <main class="main-grid">
+      <section class="glass panel inputs-panel">
+        <h2>Business Inputs</h2>
+        <div class="input-grid">
+          <label for="annualRevenue">Annual Revenue</label>
+          <input id="annualRevenue" class="editable currency" type="text" inputmode="decimal" autocomplete="off" placeholder="Enter annual revenue">
+
+          <label for="grossMargin">Gross Margin %</label>
+          <input id="grossMargin" class="editable percent" type="text" inputmode="decimal" autocomplete="off" placeholder="Enter gross margin">
+
+          <label for="annualSalary">Annual Salary</label>
+          <input id="annualSalary" class="editable currency" type="text" inputmode="decimal" autocomplete="off" placeholder="Enter annual salary">
+
+          <label for="commissionRate">Commission %</label>
+          <input id="commissionRate" class="editable percent" type="text" inputmode="decimal" autocomplete="off" placeholder="Enter commission rate">
+
+          <label for="adminFee">Administration Fee</label>
+          <input id="adminFee" type="text" readonly value="5.00%">
+
+          <label for="burdenMultiplier">Burden Multiplier</label>
+          <input id="burdenMultiplier" type="text" readonly value="1.30x">
+        </div>
+      </section>
+
+      <section class="glass panel analysis-panel">
+        <h2>Executive Profitability Analysis</h2>
+        <div class="analysis-section">
+          <h3>Revenue Performance</h3>
+          <div class="metric-list">
+            <div><span>Annual Revenue</span><strong id="analysisRevenue">-</strong></div>
+            <div><span>Gross Profit</span><strong id="analysisGrossProfit">-</strong></div>
+            <div><span>Gross Margin</span><strong id="analysisGrossMargin">-</strong></div>
+          </div>
+        </div>
+        <div class="analysis-section">
+          <h3>Employment Investment</h3>
+          <div class="metric-list">
+            <div><span>Annual Salary</span><strong id="analysisSalary">-</strong></div>
+            <div><span>Annual Burden</span><strong id="analysisBurden">-</strong></div>
+            <div><span>Administration Fee</span><strong id="analysisAdminFee">-</strong></div>
+            <div><span>Total Company Investment</span><strong id="analysisTotalInvestment">-</strong></div>
+          </div>
+        </div>
+        <div class="analysis-section">
+          <h3>Commission Analysis</h3>
+          <div class="metric-list">
+            <div><span>Adjusted Gross Profit</span><strong id="analysisAgp">-</strong></div>
+            <div><span>Commission Eligible AGP</span><strong id="analysisEligibleAgp">-</strong></div>
+            <div><span>Commission Rate</span><strong id="analysisCommissionRate">-</strong></div>
+            <div><span>Sales Commission</span><strong id="analysisCommission">-</strong></div>
+          </div>
+        </div>
+        <div class="analysis-section">
+          <h3>Company Return</h3>
+          <div class="metric-list">
+            <div><span>Company Retained GP</span><strong id="analysisRetainedGp">-</strong></div>
+            <div><span>Company Retained %</span><strong id="analysisRetainedPct">-</strong></div>
+            <div><span>Annual OTE</span><strong id="analysisOte">-</strong></div>
+            <div><span>Financial Sustainability</span><strong id="analysisSustainability">-</strong></div>
+          </div>
+        </div>
+        <article class="assessment">
+          <h3>Executive Assessment</h3>
+          <p id="assessmentHeadline">Awaiting complete assumptions.</p>
+          <div class="metric-list">
+            <div><span>Additional Revenue Required</span><strong id="assessmentAdditionalRevenue">-</strong></div>
+            <div><span>Annual OTE</span><strong id="assessmentOte">-</strong></div>
+            <div><span>Company Retained GP</span><strong id="assessmentRetainedGp">-</strong></div>
+          </div>
+        </article>
+      </section>
+
+      <section class="glass panel recovery-panel">
+        <h2>Recovery Dashboard</h2>
+        <div class="recovery-percent-wrap">
+          <p id="recoveryPercent" class="recovery-percent">-</p>
+          <p class="recovery-label">Burden Recovery</p>
+        </div>
+        <div class="progress-track">
+          <div id="recoveryProgress" class="progress-fill"></div>
+        </div>
+        <div class="metric-list compact">
+          <div><span>Break Even Revenue</span><strong id="recoveryBreakEvenRevenue">-</strong></div>
+          <div><span>Break Even Gross Profit</span><strong id="recoveryBreakEvenGrossProfit">-</strong></div>
+          <div><span>Recovered AGP</span><strong id="recoveryRecoveredAgp">-</strong></div>
+          <div><span>Remaining Burden</span><strong id="recoveryRemainingBurden">-</strong></div>
+          <div><span>Revenue Above Break Even</span><strong id="recoveryRevenueAbove">-</strong></div>
+          <div><span>Commission Status</span><strong id="recoveryCommissionStatus">-</strong></div>
+          <div><span>Annual Salary</span><strong id="recoverySalary">-</strong></div>
+          <div><span>Annual Commission</span><strong id="recoveryCommission">-</strong></div>
+          <div><span>Annual OTE</span><strong id="recoveryOte">-</strong></div>
+        </div>
+      </section>
+    </main>
+
+    <section class="glass insights">
+      <h2>Executive Insights</h2>
+      <ol id="insightsList">
+        <li>Enter annual assumptions to generate live executive insights.</li>
+        <li>Commission remains inactive until Adjusted Gross Profit exceeds Annual Burden.</li>
+        <li>Administration Fee is fixed at 5% of Gross Profit.</li>
+        <li>Annual Burden is calculated at Salary x 1.30.</li>
+        <li>Break Even Revenue is burden divided by (Gross Margin × 95%).</li>
+      </ol>
+    </section>
+  </div>
+
+  <script src="app.js"></script>
+</body>
 </html>

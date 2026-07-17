@@ -1,56 +1,72 @@
-# iMOS
+# 22Vets Sales Rep Commission Calculator
 
-**Individual Mission Operating System**
+Executive financial planning application for evaluating the profitability of hiring an individual salaried Sales Representative.
 
-A private first, standalone personal operating environment built for one operator.
+## Purpose
 
-## Mission
+This standalone client-side application supports leadership decision-making by answering:
 
-iMOS helps the operator stay ahead of reality through trusted observation, disciplined reasoning, purposeful execution, and a lasting partnership with Rosie.
+1. How much revenue is required before a Sales Representative becomes profitable.
+2. When commission begins.
+3. How much Gross Profit the company retains.
+4. What the Sales Representative's Annual OTE is.
+5. Whether the scenario is financially sustainable.
 
-## Current build
+## Application profile
 
-Build 012A completes Phase Two foundation and intelligence hardening:
+- Fully offline capable (no backend, no APIs, no external libraries).
+- Desktop-first executive command-center interface with ARGUS Tactical branding.
+- Not a spreadsheet UI.
+- Real-time formatting and live calculations.
 
-1. Encrypted Personal Vault with backup, verification, restore, and passphrase rotation
-2. Secure Secrets management inside the encrypted local vault
-3. Priority Command and Rosie Memory operating loop
-4. Review Center, timeline, commitments, decisions, and operator statistics
-5. Modular core architecture with migration and validation coverage
-6. Rosie recommendations, Knowledge Graph, and deterministic Understanding Engine
-7. Deterministic Mission Planning with lifecycle integrity, transactional updates, and regression coverage
+## Business logic
 
-See `docs/builds/BUILD_012A.md` for Phase Two finalization details.
+### Constants
 
-## Vault security
+- Administration Fee Rate = **5%**
+- Burden Multiplier = **1.30**
 
-• AES GCM 256 authenticated encryption
-• PBKDF2 SHA 256 key derivation
-• 310,000 derivation iterations
-• Random salt for every encrypted save
-• Random initialization vector for every encrypted save
-• Passphrase held only in application memory while unlocked
-• Encrypted export for operator controlled backup
-• Automatic migration from Build 002 plaintext local storage after vault creation
+### Core formulas
 
-The passphrase is never stored and cannot be recovered by iMOS. Losing the passphrase means losing access to the encrypted vault unless an accessible backup and the correct passphrase remain available.
+- **Gross Profit** = Revenue x Gross Margin
+- **Administration Fee** = Gross Profit x 5%
+- **Adjusted Gross Profit (AGP)** = Gross Profit - Administration Fee
+- **Annual Burden** = Salary x 1.30
+- **Commission Eligibility**: commission is paid only when **AGP > Annual Burden**
+- **Commission Eligible AGP** = AGP − Annual Burden
+- **Sales Commission** = Commission Eligible AGP x Commission %
+- **Annual OTE** = Salary + Commission
+- **Company Retained GP** = AGP - Annual Burden - Commission
+- **Retained GP %** = Company Retained GP ÷ Gross Profit
+- **Break Even Revenue** = Annual Burden ÷ (Gross Margin × 95%)
 
-## Product boundaries
+## Files
 
-• Personal use only
-• No ARGUS connection
-• No multi tenant architecture
-• No external integrations
-• No personal data committed to source control
-• Personal vault remains in local browser storage
+- `index.html` - single-page application shell and executive layout.
+- `styles.css` - ARGUS Tactical visual system and responsive layout.
+- `app.js` - input formatting, calculation engine, dashboard rendering, CSV export, and print.
+- `README.md` - project documentation.
+- `LICENSE` - open-source license.
+- `logo.png` - official 22Vets logo used in the header.
 
-## Local development
+## Deployment (GitHub Pages)
 
-```bash
-pnpm install
-pnpm run dev
-```
+Expected publish URL:
 
-## Security
+`https://<github-username>.github.io/<repository-name>/`
 
-The repository must not contain secrets, credentials, personal records, calendar data, email content, passphrases, encrypted vault exports, or private operator memory.
+Enable GitHub Pages from:
+
+1. **Repository Settings**
+2. **Pages**
+3. **Build and deployment → Source**
+4. Select **Deploy from a branch**
+5. Select branch **main** and folder **/(root)**
+
+## Version
+
+**1.0.0**
+
+## License
+
+Released under the **MIT License**. See `LICENSE`.
