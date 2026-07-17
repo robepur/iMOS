@@ -29,10 +29,6 @@ const els = {
   analysisRetainedPct: document.getElementById("analysisRetainedPct"),
   analysisOte: document.getElementById("analysisOte"),
   analysisSustainability: document.getElementById("analysisSustainability"),
-  assessmentHeadline: document.getElementById("assessmentHeadline"),
-  assessmentAdditionalRevenue: document.getElementById("assessmentAdditionalRevenue"),
-  assessmentOte: document.getElementById("assessmentOte"),
-  assessmentRetainedGp: document.getElementById("assessmentRetainedGp"),
   recoveryPercent: document.getElementById("recoveryPercent"),
   recoveryProgress: document.getElementById("recoveryProgress"),
   recoveryBreakEvenRevenue: document.getElementById("recoveryBreakEvenRevenue"),
@@ -165,7 +161,7 @@ function renderEmpty() {
     els.kpiRevenue, els.kpiGrossProfit, els.kpiAdjustedGrossProfit, els.kpiOte, els.kpiRetained,
     els.analysisRevenue, els.analysisGrossProfit, els.analysisSalary, els.analysisBurden, els.analysisAdminFee,
     els.analysisTotalInvestment, els.analysisAgp, els.analysisEligibleAgp, els.analysisCommission, els.analysisRetainedGp,
-    els.analysisOte, els.assessmentAdditionalRevenue, els.assessmentOte, els.assessmentRetainedGp,
+    els.analysisOte,
     els.recoveryBreakEvenRevenue, els.recoveryBreakEvenGrossProfit, els.recoveryRecoveredAgp, els.recoveryRemainingBurden,
     els.recoveryRevenueAbove, els.recoverySalary, els.recoveryCommission, els.recoveryOte
   ];
@@ -176,9 +172,8 @@ function renderEmpty() {
   [els.analysisGrossMargin, els.analysisCommissionRate, els.analysisRetainedPct].forEach((target) => {
     target.textContent = "-";
   });
-
   els.analysisSustainability.textContent = "-";
-  els.assessmentHeadline.textContent = "Awaiting complete assumptions.";
+  els.analysisSustainability.textContent = "-";
   els.recoveryPercent.textContent = "-";
   els.recoveryCommissionStatus.textContent = "-";
   els.recoveryProgress.style.width = "0%";
@@ -218,14 +213,6 @@ function renderCalculated(data) {
   els.analysisSustainability.textContent = data.sustainable
     ? (data.commissionActive ? "Sustainable • Commission Active" : "Sustainable • Commission Pending")
     : (data.commissionActive ? "Not Sustainable • Commission Active" : "Not Sustainable • Commission Pending");
-  els.assessmentHeadline.textContent = data.sustainable
-    ? "Financially Sustainable. Commission Active."
-    : data.commissionActive
-      ? "Commission Active, but retained return is not yet sustainable."
-      : "Not Yet Sustainable. Commission Pending.";
-  setText(els.assessmentAdditionalRevenue, data.additionalRevenueRequired, formatCurrency);
-  setText(els.assessmentOte, data.annualOte, formatCurrency);
-  setText(els.assessmentRetainedGp, data.retainedGp, formatCurrency);
 
   setText(els.recoveryBreakEvenRevenue, data.breakEvenRevenue, formatCurrency);
   setText(els.recoveryBreakEvenGrossProfit, data.breakEvenGrossProfit, formatCurrency);

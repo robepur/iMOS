@@ -81,13 +81,13 @@ p {
 }
 
 h1 {
-  font-size: clamp(0.92rem, 1.32vw, 1.18rem);
+  font-size: clamp(1rem, 1.55vw, 1.28rem);
   color: var(--gold);
   letter-spacing: 0.02em;
 }
 
 .subtitle {
-  font-size: clamp(0.62rem, 0.82vw, 0.78rem);
+  font-size: clamp(0.7rem, 0.94vw, 0.88rem);
   opacity: 0.85;
 }
 
@@ -106,7 +106,7 @@ h1 {
   border-radius: 8px;
   cursor: pointer;
   white-space: nowrap;
-  font-size: 0.78rem;
+  font-size: 0.86rem;
 }
 
 .btn:hover {
@@ -134,7 +134,7 @@ h1 {
 }
 
 .kpi-card h2 {
-  font-size: 0.74rem;
+  font-size: 0.8rem;
   font-weight: 600;
   letter-spacing: 0.025em;
   text-transform: uppercase;
@@ -143,7 +143,7 @@ h1 {
 
 .kpi-value {
   margin-top: 0.3rem;
-  font-size: clamp(0.88rem, 1.45vw, 1.28rem);
+  font-size: clamp(0.98rem, 1.7vw, 1.46rem);
   font-weight: 700;
   color: var(--gold);
   white-space: nowrap;
@@ -166,7 +166,7 @@ h1 {
 
 .panel > h2 {
   color: var(--gold);
-  font-size: 0.84rem;
+  font-size: 0.96rem;
   margin-bottom: 0.45rem;
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -179,7 +179,7 @@ h1 {
 }
 
 .input-grid label {
-  font-size: 0.72rem;
+  font-size: 0.8rem;
   font-weight: 600;
   opacity: 0.88;
 }
@@ -192,7 +192,7 @@ h1 {
   background: rgba(255, 255, 255, 0.09);
   color: var(--white);
   padding: 0.45rem 0.62rem;
-  font-size: 0.78rem;
+  font-size: 0.88rem;
 }
 
 .input-grid input::placeholder {
@@ -217,12 +217,11 @@ h1 {
   min-height: 0;
 }
 
-.analysis-section h3,
-.assessment h3 {
-  font-size: 0.68rem;
+.analysis-section h3 {
+  font-size: 0.76rem;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  margin-bottom: 0.16rem;
+  margin-bottom: 0.2rem;
   color: rgba(255, 255, 255, 0.86);
 }
 
@@ -236,7 +235,7 @@ h1 {
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   gap: 0.3rem;
-  font-size: 0.7rem;
+  font-size: 0.8rem;
   min-height: 0.95rem;
 }
 
@@ -249,27 +248,9 @@ h1 {
 
 .metric-list strong {
   color: var(--gold);
-  font-size: 0.74rem;
+  font-size: 0.84rem;
   font-weight: 700;
   white-space: nowrap;
-}
-
-.assessment {
-  margin-top: 0.15rem;
-  padding: 0.34rem 0.45rem;
-  border-radius: 10px;
-  border: 1px solid rgba(197, 162, 83, 0.35);
-  background: rgba(0, 0, 0, 0.22);
-}
-
-#assessmentHeadline {
-  font-size: 0.73rem;
-  font-weight: 600;
-  margin-bottom: 0.2rem;
-  line-height: 1.15;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 .recovery-panel {
@@ -284,14 +265,14 @@ h1 {
 }
 
 .recovery-percent {
-  font-size: clamp(0.96rem, 2.1vw, 1.58rem);
+  font-size: clamp(1.08rem, 2.3vw, 1.78rem);
   font-weight: 800;
   color: var(--gold);
   white-space: nowrap;
 }
 
 .recovery-label {
-  font-size: 0.64rem;
+  font-size: 0.74rem;
   text-transform: uppercase;
   letter-spacing: 0.05em;
   opacity: 0.82;
@@ -324,7 +305,7 @@ h1 {
 
 .insights h2 {
   color: var(--gold);
-  font-size: 0.8rem;
+  font-size: 0.92rem;
   margin-bottom: 0.26rem;
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -335,7 +316,7 @@ h1 {
   padding-left: 1.1rem;
   display: grid;
   gap: 0.08rem;
-  font-size: 0.7rem;
+  font-size: 0.8rem;
 }
 
 .insights li {
@@ -359,7 +340,7 @@ h1 {
   }
 
   #analysisSustainability {
-    font-size: 0.65rem;
+    font-size: 0.74rem;
     max-width: 13.2rem;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -367,7 +348,7 @@ h1 {
 }
 
 #analysisSustainability {
-  font-size: 0.67rem;
+  font-size: 0.78rem;
   max-width: 15rem;
   overflow: hidden;
   text-overflow: ellipsis;
