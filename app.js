@@ -215,12 +215,14 @@ function renderCalculated(data) {
 
   const sustainability = data.sustainable ? "Financially Sustainable" : "Not Yet Sustainable";
   const commissionState = data.commissionActive ? "Commission Active" : "Commission Not Yet Earned";
-  els.analysisSustainability.textContent = `${sustainability} • ${commissionState}`;
+  els.analysisSustainability.textContent = data.sustainable
+    ? (data.commissionActive ? "Sustainable • Commission Active" : "Sustainable • Commission Pending")
+    : (data.commissionActive ? "Not Sustainable • Commission Active" : "Not Sustainable • Commission Pending");
   els.assessmentHeadline.textContent = data.sustainable
     ? "Financially Sustainable. Commission Active."
     : data.commissionActive
       ? "Commission Active, but retained return is not yet sustainable."
-      : "Not Yet Sustainable. Commission Not Yet Earned.";
+      : "Not Yet Sustainable. Commission Pending.";
   setText(els.assessmentAdditionalRevenue, data.additionalRevenueRequired, formatCurrency);
   setText(els.assessmentOte, data.annualOte, formatCurrency);
   setText(els.assessmentRetainedGp, data.retainedGp, formatCurrency);
